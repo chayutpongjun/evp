@@ -1,0 +1,843 @@
+<%- include('partials/visto-top', {
+  title: 'Webhook • EVP Gateway',
+  active: 'webhook',
+  pageTitle: 'Webhook',
+  pageSubtitle: 'จำลองการเรียก webhook เข้า gateway และดู response/status',
+  merchant
+}) %>
+
+<%
+  var W_TERMINAL = merchant ? merchant.Terminal_ID : 'TID001';
+  var W_API_KEY  = merchant ? merchant.ApiKey      : 'YOUR_API_KEY';
+%>
+
+<style>
+  .wh-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .wh-layout { grid-template-columns: 1fr; } }
+
+  /* ── Request Inspector ── */
+  .req-panel {
+    border: 1px solid #111827;
+    border-radius: 14px;
+    background: #060b14;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .req-panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+  }
+  .req-panel-head > span {
+    font-size: 12px; font-weight: 700; color: #9ca3af;
+    letter-spacing: .4px; text-transform: uppercase;
+  }
+  .req-url-bar {
+    display: flex; align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid #111827;
+    background: #0a1020;
+  }
+  .req-method {
+    font-size: 11px; font-weight: 800;
+    padding: 4px 9px; border-radius: 6px;
+    background: rgba(34,197,94,.14); color: #22c55e;
+    border: 1px solid rgba(34,197,94,.25);
+    margin-right: 10px; flex-shrink: 0; letter-spacing: .5px;
+  }
+  .req-url {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px; color: #60a5fa; word-break: break-all; line-height: 1.5;
+  }
+  .req-tabs {
+    display: flex; border-bottom: 1px solid #111827;
+    padding: 0 14px; background: #080e1a; gap: 2px;
+  }
+  .req-tab {
+    padding: 8px 12px; font-size: 12px; font-weight: 600; color: #4b5563;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s; user-select: none;
+  }
+  .req-tab.active { color: #e5e7eb; border-color: #00e676; }
+  .req-tab:hover:not(.active) { color: #9ca3af; }
+  .req-body { display: none; padding: 12px 14px; }
+  .req-body.active { display: block; }
+  .req-headers { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .req-headers td { padding: 5px 8px; border-bottom: 1px solid #0d1117; vertical-align: top; }
+  .req-headers td:first-child { color: #9ca3af; white-space: nowrap; font-weight: 600; width: 42%; }
+  .req-headers td:last-child { color: #e5e7eb; font-family: monospace; word-break: break-all; }
+  .req-json {
+    background: #020609; border: 1px solid #0d1117; border-radius: 8px;
+    padding: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11.5px; line-height: 1.65; overflow-x: auto;
+    white-space: pre; color: #d1d5db; max-height: 300px; overflow-y: auto;
+  }
+  .json-key  { color: #93c5fd; }
+  .json-str  { color: #86efac; }
+  .json-num  { color: #fde68a; }
+  .json-null { color: #f87171; }
+  .req-curl {
+    background: #020609; border: 1px solid #0d1117; border-radius: 8px;
+    padding: 12px 14px; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px; line-height: 1.8; overflow-x: auto;
+    white-space: pre-wrap; word-break: break-all; color: #d1d5db;
+  }
+  .curl-cmd  { color: #f9a8d4; font-weight: 700; }
+  .curl-flag { color: #93c5fd; }
+  .curl-url  { color: #60a5fa; }
+  .curl-str  { color: #86efac; }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 7px;
+    border: 1px solid #1f2937; background: #0d1117;
+    color: #9ca3af; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .copy-btn:hover { border-color: #374151; color: #e5e7eb; }
+  .copy-btn.copied { color: #00e676; border-color: rgba(0,230,118,.35); }
+  .curl-subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .curl-subtab {
+    padding: 4px 12px; border-radius: 6px;
+    border: 1px solid #1f2937; background: transparent;
+    color: #6b7280; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .curl-subtab.active { background: #111827; border-color: #374151; color: #e5e7eb; }
+
+  /* ── Response panel ── */
+  .res-panel {
+    border: 1px solid #111827; border-radius: 14px;
+    background: #060b14; overflow: hidden; margin-top: 14px;
+  }
+  .res-panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; border-bottom: 1px solid #111827; background: #080e1a;
+  }
+  .res-status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  }
+  .res-status-badge.ok   { background: rgba(0,230,118,.12); color: #00e676; border: 1px solid rgba(0,230,118,.25); }
+  .res-status-badge.err  { background: rgba(239,68,68,.12);  color: #f87171; border: 1px solid rgba(239,68,68,.25); }
+  .res-status-badge.idle { background: rgba(107,114,128,.1); color: #6b7280; border: 1px solid #1f2937; }
+
+  /* ── Code Examples ── */
+  .wh-code-panel {
+    margin-top: 16px;
+    border: 1px solid #111827; border-radius: 14px;
+    background: #060b14; overflow: hidden;
+  }
+  .wh-code-panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #111827; background: #080e1a;
+  }
+  .wh-code-panel-head h4 { margin: 0; font-size: 13px; font-weight: 700; color: #e5e7eb; }
+  .wh-code-panel-head p  { margin: 0; font-size: 11px; color: #4b5563; }
+  .wh-lang-tabs {
+    display: flex; padding: 0 16px;
+    border-bottom: 1px solid #111827; background: #080e1a;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .wh-lang-tabs::-webkit-scrollbar { display: none; }
+  .wh-lang-tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 14px; font-size: 12px; font-weight: 600; color: #4b5563;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    white-space: nowrap; transition: color .15s, border-color .15s; user-select: none;
+  }
+  .wh-lang-tab:hover:not(.active) { color: #9ca3af; }
+  .wh-lang-tab.active { color: #e5e7eb; border-color: #00e676; }
+  .wh-lang-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .wh-lang-body { display: none; }
+  .wh-lang-body.active { display: block; }
+  .wh-code-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px 6px;
+  }
+  .wh-code-toolbar span { font-size: 11px; color: #374151; font-family: monospace; }
+  .wh-copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px; border-radius: 7px;
+    border: 1px solid #1f2937; background: transparent;
+    color: #6b7280; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .wh-copy-btn:hover  { border-color: #374151; color: #e5e7eb; }
+  .wh-copy-btn.copied { color: #00e676; border-color: rgba(0,230,118,.35); }
+  .wh-code-block {
+    margin: 0 16px 16px;
+    background: #020609; border: 1px solid #0d1117; border-radius: 10px;
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px; line-height: 1.75;
+    overflow-x: auto; white-space: pre;
+    color: #d1d5db; max-height: 460px; overflow-y: auto;
+  }
+  /* token colours */
+  .t-kw   { color: #c084fc; }
+  .t-fn   { color: #60a5fa; }
+  .t-str  { color: #86efac; }
+  .t-num  { color: #fde68a; }
+  .t-cmt  { color: #374151; font-style: italic; }
+  .t-type { color: #f9a8d4; }
+  .t-var  { color: #e5e7eb; }
+  .t-op   { color: #94a3b8; }
+  .t-prop { color: #93c5fd; }
+  .t-anno { color: #fbbf24; }
+</style>
+
+<div class="wh-layout">
+
+  <!-- ── Left: Form ── -->
+  <div>
+    <div class="card">
+      <div class="hd">
+        <div>
+          <h3>Webhook Simulator</h3>
+          <span>ยิงไปที่ <code>POST /api/webhook/evp</code> หรือ <code>POST /webhook/:paymentId</code></span>
+        </div>
+      </div>
+      <div class="bd">
+        <div class="grid">
+          <div style="grid-column: 1 / -1;">
+            <label>Webhook JSON Payload</label>
+            <textarea id="payload" style="min-height:220px; font-family: 'JetBrains Mono','Fira Code',monospace; font-size:12px;"></textarea>
+            <div class="muted" style="font-size:12px;margin-top:6px;">
+              ต้องมี <code>id</code>/<code>payment_id</code> หรือ ( <code>order_id</code>, <code>customer_id</code>, <code>transaction_ref</code> ).
+              การยิงจากเบราว์เซอร์ไม่มี headers <code>webhook-signature</code> — ใช้ <code>SKIP_WEBHOOK_VERIFY=true</code> สำหรับทดสอบ
+            </div>
+          </div>
+          <div>
+            <label>Optional: Payment_ID in URL <span class="muted" style="font-weight:400;">(route <code>/webhook/:id</code>)</span></label>
+            <input id="paymentIdInPath" placeholder="89224ac9-..." />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="btn" type="button" id="sendBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Send Webhook
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Response panel -->
+    <div class="res-panel">
+      <div class="res-panel-head">
+        <span style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;">Response</span>
+        <span id="resStatusBadge" class="res-status-badge idle">—</span>
+      </div>
+      <div style="padding:12px 14px;">
+        <pre id="result" style="margin:0;font-family:monospace;font-size:12px;line-height:1.6;color:#9ca3af;max-height:280px;overflow:auto;background:#020609;border:1px solid #0d1117;border-radius:8px;padding:12px;">ยังไม่มี</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Request Inspector ── -->
+  <div class="req-panel" id="reqPanel">
+
+    <div class="req-panel-head">
+      <span>Request Inspector</span>
+      <div style="display:flex;gap:6px;">
+        <% if (merchant) { %>
+          <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(0,230,118,.1);color:#00e676;border:1px solid rgba(0,230,118,.2);font-weight:700;"><%= merchant.Terminal_ID %></span>
+        <% } else { %>
+          <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-weight:700;">No Active Merchant</span>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="req-url-bar">
+      <span class="req-method">POST</span>
+      <span class="req-url" id="reqUrlDisplay">/api/webhook/evp</span>
+    </div>
+
+    <div class="req-tabs">
+      <div class="req-tab active" data-tab="headers">Headers</div>
+      <div class="req-tab" data-tab="body">Body</div>
+      <div class="req-tab" data-tab="curl">cURL</div>
+    </div>
+
+    <!-- Headers -->
+    <div class="req-body active" id="tab-headers">
+      <table class="req-headers">
+        <tr><td>Content-Type</td><td>application/json</td></tr>
+        <tr><td>webhook-id</td><td style="color:#6b7280;">(generated by EVP)</td></tr>
+        <tr><td>webhook-timestamp</td><td style="color:#6b7280;">(unix timestamp, set by EVP)</td></tr>
+        <tr><td>webhook-signature</td><td style="color:#6b7280;">omit → set <code>SKIP_WEBHOOK_VERIFY=true</code></td></tr>
+      </table>
+    </div>
+
+    <!-- Body -->
+    <div class="req-body" id="tab-body">
+      <div class="req-json" id="bodyPreview"></div>
+    </div>
+
+    <!-- cURL -->
+    <div class="req-body" id="tab-curl">
+      <div class="curl-subtabs">
+        <button class="curl-subtab active" data-curl="general">General endpoint</button>
+        <button class="curl-subtab" data-curl="perpayment">Per-payment URL</button>
+      </div>
+      <div id="curlGeneral" class="req-curl"></div>
+      <div id="curlPerPayment" class="req-curl" style="display:none;"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="copy-btn" id="btnCopyCurl">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy cURL
+        </button>
+        <button class="copy-btn" id="btnCopyJson">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy JSON
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /req-panel -->
+</div><!-- /wh-layout -->
+
+<script>
+(function () {
+  var payloadEl        = document.getElementById('payload');
+  var pidInput         = document.getElementById('paymentIdInPath');
+  var sendBtn          = document.getElementById('sendBtn');
+  var resultEl         = document.getElementById('result');
+  var resStatusBadge   = document.getElementById('resStatusBadge');
+  var bodyPreview      = document.getElementById('bodyPreview');
+  var curlGeneralEl    = document.getElementById('curlGeneral');
+  var curlPerPayEl     = document.getElementById('curlPerPayment');
+  var reqUrlDisplay    = document.getElementById('reqUrlDisplay');
+
+  var activeCurlMode = 'general';
+
+  /* ── sample payload ── */
+  var sample = {
+    type: 'payment.completed',
+    data: {
+      payment_id: 'PUT-REAL-PAYMENT_ID-HERE',
+      status: 'completed',
+      terminal_id: '<%= W_TERMINAL %>',
+      transaction_type: 'SALE',
+      amount: 10000,
+      curr_code: 764,
+      payment_method: 'Card',
+      payment_network: 'Visa',
+      masked_pan: '441770******7408',
+      reference: {
+        order_id: 'ORD-TEST-001',
+        customer_id: 'CUST-003',
+        transaction_ref: 'TXN-TEST-003'
+      },
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString()
+    }
+  };
+  payloadEl.value = JSON.stringify(sample, null, 2);
+
+  /* ── helpers ── */
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function pid()        { return pidInput ? pidInput.value.trim() : ''; }
+  function generalUrl() { return '/api/webhook/evp'; }
+  function perPayUrl()  { var p = pid(); return p ? ('/webhook/' + encodeURIComponent(p)) : '/webhook/{payment_id}'; }
+  function currentUrl() { return activeCurlMode === 'perpayment' ? perPayUrl() : generalUrl(); }
+
+  function colorJson(obj) {
+    var s = JSON.stringify(obj, null, 2);
+    return s.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (m) {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return '<span class="json-key">' + esc(m) + '</span>';
+        return '<span class="json-str">' + esc(m) + '</span>';
+      }
+      if (/true|false|null/.test(m)) return '<span class="json-null">' + m + '</span>';
+      return '<span class="json-num">' + m + '</span>';
+    });
+  }
+
+  function buildCurlHtml(url, rawBody) {
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">'
+      + esc(window.location.origin + url) + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
+      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(rawBody) + '\'</span>';
+  }
+
+  function update() {
+    var raw = payloadEl.value.trim() || '{}';
+    var parsed = null;
+    try { parsed = JSON.parse(payloadEl.value); } catch (e) {}
+
+    /* url bar */
+    if (reqUrlDisplay) reqUrlDisplay.textContent = currentUrl();
+
+    /* body preview */
+    if (bodyPreview) {
+      bodyPreview.innerHTML = parsed
+        ? colorJson(parsed)
+        : '<span style="color:#f87171;">⚠ Invalid JSON</span>';
+    }
+
+    /* curl panels */
+    if (curlGeneralEl)  curlGeneralEl.innerHTML  = buildCurlHtml(generalUrl(), raw);
+    if (curlPerPayEl)   curlPerPayEl.innerHTML   = buildCurlHtml(perPayUrl(),  raw);
+  }
+
+  /* live updates */
+  payloadEl.addEventListener('input', update);
+  if (pidInput) pidInput.addEventListener('input', update);
+
+  /* tab switching */
+  document.querySelectorAll('.req-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.req-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.req-body').forEach(function (b) { b.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+      if (target) target.classList.add('active');
+    });
+  });
+
+  /* curl subtabs */
+  document.querySelectorAll('.curl-subtab').forEach(function (st) {
+    st.addEventListener('click', function () {
+      document.querySelectorAll('.curl-subtab').forEach(function (t) { t.classList.remove('active'); });
+      st.classList.add('active');
+      activeCurlMode = st.getAttribute('data-curl');
+      if (curlGeneralEl) curlGeneralEl.style.display = activeCurlMode === 'general'    ? '' : 'none';
+      if (curlPerPayEl)  curlPerPayEl.style.display  = activeCurlMode === 'perpayment' ? '' : 'none';
+      update();
+    });
+  });
+
+  /* copy helper */
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(function () {
+      btn.classList.add('copied');
+      var orig = btn.innerHTML;
+      btn.innerHTML = btn.innerHTML.replace(/Copy.*/i, 'Copied!');
+      setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
+    });
+  }
+
+  var btnCopyCurl = document.getElementById('btnCopyCurl');
+  var btnCopyJson = document.getElementById('btnCopyJson');
+
+  if (btnCopyCurl) {
+    btnCopyCurl.addEventListener('click', function () {
+      var url = window.location.origin + currentUrl();
+      var raw = 'curl -X POST ' + url + ' \\\n'
+        + '  -H "Content-Type: application/json" \\\n'
+        + '  -d \'' + payloadEl.value.trim() + '\'';
+      copyText(raw, btnCopyCurl);
+    });
+  }
+  if (btnCopyJson) {
+    btnCopyJson.addEventListener('click', function () {
+      copyText(payloadEl.value.trim(), btnCopyJson);
+    });
+  }
+
+  /* ── Send Webhook ── */
+  sendBtn.addEventListener('click', async function () {
+    var json;
+    try { json = JSON.parse(payloadEl.value); }
+    catch (e) { resultEl.textContent = 'Invalid JSON: ' + e.message; return; }
+
+    var url = pid() ? ('/webhook/' + encodeURIComponent(pid())) : '/api/webhook/evp';
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Sending…';
+    resStatusBadge.className = 'res-status-badge idle';
+    resStatusBadge.textContent = 'Loading…';
+    resultEl.textContent = '…';
+
+    try {
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(json)
+      });
+      var text = await res.text();
+      var parsed = null;
+      try { parsed = JSON.parse(text); } catch {}
+      resultEl.textContent = 'POST ' + url + '\nHTTP ' + res.status + '\n\n'
+        + (parsed ? JSON.stringify(parsed, null, 2) : text);
+      resStatusBadge.className = 'res-status-badge ' + (res.ok ? 'ok' : 'err');
+      resStatusBadge.textContent = res.status + ' ' + (res.ok ? 'OK' : 'Error');
+    } catch (e) {
+      resultEl.textContent = 'Error: ' + e.message;
+      resStatusBadge.className = 'res-status-badge err';
+      resStatusBadge.textContent = 'Network Error';
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Send Webhook';
+    }
+  });
+
+  /* initial render */
+  update();
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     CODE EXAMPLES PANEL
+══════════════════════════════════════════ -->
+<div class="wh-code-panel">
+  <div class="wh-code-panel-head">
+    <div>
+      <h4>Code Examples</h4>
+      <p>ตัวอย่างโค้ดสำหรับส่ง Webhook Payload — อัปเดตอัตโนมัติตาม Payment ID in URL</p>
+    </div>
+  </div>
+
+  <!-- Language tabs -->
+  <div class="wh-lang-tabs">
+    <div class="wh-lang-tab active" data-lang="nodejs">
+      <span class="wh-lang-dot" style="background:#22c55e;"></span>Node.js
+    </div>
+    <div class="wh-lang-tab" data-lang="js">
+      <span class="wh-lang-dot" style="background:#fde68a;"></span>JavaScript
+    </div>
+    <div class="wh-lang-tab" data-lang="python">
+      <span class="wh-lang-dot" style="background:#60a5fa;"></span>Python
+    </div>
+    <div class="wh-lang-tab" data-lang="csharp">
+      <span class="wh-lang-dot" style="background:#c084fc;"></span>C#
+    </div>
+    <div class="wh-lang-tab" data-lang="cpp">
+      <span class="wh-lang-dot" style="background:#f9a8d4;"></span>C++
+    </div>
+    <div class="wh-lang-tab" data-lang="php">
+      <span class="wh-lang-dot" style="background:#a78bfa;"></span>PHP
+    </div>
+    <div class="wh-lang-tab" data-lang="html">
+      <span class="wh-lang-dot" style="background:#fb923c;"></span>HTML
+    </div>
+  </div>
+
+  <!-- Node.js -->
+  <div class="wh-lang-body active" id="wh-lang-nodejs">
+    <div class="wh-code-toolbar">
+      <span>webhook-simulator.js</span>
+      <button class="wh-copy-btn" data-copy="nodejs">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-nodejs"></div>
+  </div>
+
+  <!-- JavaScript -->
+  <div class="wh-lang-body" id="wh-lang-js">
+    <div class="wh-code-toolbar">
+      <span>webhook-simulator.js (Browser Fetch)</span>
+      <button class="wh-copy-btn" data-copy="js">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-js"></div>
+  </div>
+
+  <!-- Python -->
+  <div class="wh-lang-body" id="wh-lang-python">
+    <div class="wh-code-toolbar">
+      <span>webhook_simulator.py</span>
+      <button class="wh-copy-btn" data-copy="python">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-python"></div>
+  </div>
+
+  <!-- C# -->
+  <div class="wh-lang-body" id="wh-lang-csharp">
+    <div class="wh-code-toolbar">
+      <span>WebhookSimulator.cs</span>
+      <button class="wh-copy-btn" data-copy="csharp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-csharp"></div>
+  </div>
+
+  <!-- C++ -->
+  <div class="wh-lang-body" id="wh-lang-cpp">
+    <div class="wh-code-toolbar">
+      <span>webhook_simulator.cpp</span>
+      <button class="wh-copy-btn" data-copy="cpp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-cpp"></div>
+  </div>
+
+  <!-- PHP -->
+  <div class="wh-lang-body" id="wh-lang-php">
+    <div class="wh-code-toolbar">
+      <span>webhook_simulator.php</span>
+      <button class="wh-copy-btn" data-copy="php">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-php"></div>
+  </div>
+
+  <!-- HTML -->
+  <div class="wh-lang-body" id="wh-lang-html">
+    <div class="wh-code-toolbar">
+      <span>webhook-simulator.html</span>
+      <button class="wh-copy-btn" data-copy="html">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+      </button>
+    </div>
+    <div class="wh-code-block" id="wh-code-html"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ── shared DOM refs ── */
+  var payloadEl = document.getElementById('payload');
+  var pidInputEl = document.getElementById('paymentIdInPath');
+
+  function pid()    { return pidInputEl ? pidInputEl.value.trim() : ''; }
+  function whUrl()  {
+    var p = pid();
+    return p ? ('http://localhost:3000/webhook/' + encodeURIComponent(p))
+             : 'http://localhost:3000/api/webhook/evp';
+  }
+  function rawBody() { return payloadEl ? payloadEl.value.trim() : '{}'; }
+
+  /* ── token helpers ── */
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function kw(s)  { return '<span class="t-kw">'   + esc(s) + '</span>'; }
+  function fn(s)  { return '<span class="t-fn">'   + esc(s) + '</span>'; }
+  function st(s)  { return '<span class="t-str">'  + esc(s) + '</span>'; }
+  function num(s) { return '<span class="t-num">'  + esc(s) + '</span>'; }
+  function cmt(s) { return '<span class="t-cmt">'  + esc(s) + '</span>'; }
+  function ty(s)  { return '<span class="t-type">' + esc(s) + '</span>'; }
+  function vr(s)  { return '<span class="t-var">'  + esc(s) + '</span>'; }
+  function op(s)  { return '<span class="t-op">'   + esc(s) + '</span>'; }
+  function pr(s)  { return '<span class="t-prop">' + esc(s) + '</span>'; }
+
+  /* ── generators (return innerHTML) ── */
+  function genNodejs() {
+    var url = whUrl(), body = rawBody();
+    return kw('const') + ' ' + vr('axios') + ' ' + op('=') + ' ' + fn('require') + '(' + st('"axios"') + ');\n'
+      + '\n'
+      + cmt('// Webhook Simulator — send payload to EVP gateway') + '\n'
+      + kw('const') + ' ' + vr('payload') + ' ' + op('=') + ' ' + esc(body) + ';\n'
+      + '\n'
+      + kw('async function') + ' ' + fn('sendWebhook') + '() {\n'
+      + '  ' + kw('try') + ' {\n'
+      + '    ' + kw('const') + ' { ' + pr('data') + ' } ' + op('=') + ' ' + kw('await') + ' ' + vr('axios') + '.' + fn('post') + '(\n'
+      + '      ' + st('"' + url + '"') + ',\n'
+      + '      ' + vr('payload') + ',\n'
+      + '      { ' + pr('headers') + ': { ' + st('"Content-Type"') + ': ' + st('"application/json"') + ' } }\n'
+      + '    );\n'
+      + '    ' + vr('console') + '.' + fn('log') + '(' + st('"✅ Response:"') + ', ' + vr('data') + ');\n'
+      + '  } ' + kw('catch') + ' (' + vr('err') + ') {\n'
+      + '    ' + vr('console') + '.' + fn('error') + '(' + st('"❌ Error:"') + ', ' + vr('err') + '.' + pr('message') + ');\n'
+      + '  }\n'
+      + '}\n\n'
+      + fn('sendWebhook') + '();';
+  }
+  function rawNodejs() {
+    return 'const axios = require("axios");\n\n// Webhook Simulator — send payload to EVP gateway\nconst payload = '
+      + rawBody() + ';\n\nasync function sendWebhook() {\n  try {\n    const { data } = await axios.post(\n      "'
+      + whUrl() + '",\n      payload,\n      { headers: { "Content-Type": "application/json" } }\n    );\n    console.log("✅ Response:", data);\n  } catch (err) {\n    console.error("❌ Error:", err.message);\n  }\n}\n\nsendWebhook();';
+  }
+
+  function genJs() {
+    var url = whUrl(), body = rawBody();
+    return cmt('// Webhook Simulator — send payload to EVP gateway') + '\n'
+      + kw('const') + ' ' + vr('payload') + ' ' + op('=') + ' ' + esc(body) + ';\n\n'
+      + fn('fetch') + '(' + st('"' + url + '"') + ', {\n'
+      + '  ' + pr('method') + ': ' + st('"POST"') + ',\n'
+      + '  ' + pr('headers') + ': { ' + st('"Content-Type"') + ': ' + st('"application/json"') + ' },\n'
+      + '  ' + pr('body') + ': ' + ty('JSON') + '.' + fn('stringify') + '(' + vr('payload') + ')\n'
+      + '})\n'
+      + '.' + fn('then') + '(' + vr('res') + ' => ' + vr('res') + '.' + fn('json') + '())\n'
+      + '.' + fn('then') + '(' + vr('data') + ' => ' + vr('console') + '.' + fn('log') + '(' + st('"✅ Response:"') + ', ' + vr('data') + '))\n'
+      + '.' + fn('catch') + '(' + vr('err') + ' => ' + vr('console') + '.' + fn('error') + '(' + st('"❌ Error:"') + ', ' + vr('err') + '));';
+  }
+  function rawJs() {
+    return '// Webhook Simulator — send payload to EVP gateway\nconst payload = ' + rawBody()
+      + ';\n\nfetch("' + whUrl() + '", {\n  method: "POST",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify(payload)\n})\n.then(res => res.json())\n.then(data => console.log("✅ Response:", data))\n.catch(err => console.error("❌ Error:", err));';
+  }
+
+  function genPython() {
+    var url = whUrl(), body = rawBody();
+    return kw('import') + ' ' + vr('requests') + '\n\n'
+      + cmt('# Webhook Simulator — send payload to EVP gateway') + '\n'
+      + vr('payload') + ' ' + op('=') + ' ' + esc(body) + '\n\n'
+      + vr('response') + ' ' + op('=') + ' ' + vr('requests') + '.' + fn('post') + '(\n'
+      + '    ' + st('"' + url + '"') + ',\n'
+      + '    ' + pr('json') + op('=') + vr('payload') + '\n'
+      + ')\n\n'
+      + kw('print') + '(' + st('"✅ Status:"') + ', ' + vr('response') + '.' + pr('status_code') + ')\n'
+      + kw('print') + '(' + st('"📦 Response:"') + ', ' + vr('response') + '.' + fn('json') + '())';
+  }
+  function rawPython() {
+    return 'import requests\n\n# Webhook Simulator — send payload to EVP gateway\npayload = '
+      + rawBody() + '\n\nresponse = requests.post(\n    "' + whUrl() + '",\n    json=payload\n)\n\nprint("✅ Status:", response.status_code)\nprint("📦 Response:", response.json())';
+  }
+
+  function genCsharp() {
+    var url = whUrl(), body = rawBody();
+    var escapedBody = body.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return kw('using') + ' ' + ty('System') + '.' + ty('Net') + '.' + ty('Http') + ';\n'
+      + kw('using') + ' ' + ty('System') + '.' + ty('Text') + ';\n'
+      + kw('using') + ' ' + ty('System') + '.' + ty('Text') + '.' + ty('Json') + ';\n\n'
+      + cmt('// Webhook Simulator — send payload to EVP gateway') + '\n'
+      + kw('var') + ' ' + vr('jsonBody') + ' ' + op('=') + ' ' + st('"' + escapedBody + '"') + ';\n'
+      + kw('var') + ' ' + vr('content') + ' ' + op('=') + ' ' + kw('new') + ' ' + ty('StringContent') + '(\n'
+      + '    ' + vr('jsonBody') + ', ' + ty('Encoding') + '.' + pr('UTF8') + ', ' + st('"application/json"') + '\n'
+      + ');\n\n'
+      + kw('using var') + ' ' + vr('client') + ' ' + op('=') + ' ' + kw('new') + ' ' + ty('HttpClient') + '();\n'
+      + kw('var') + ' ' + vr('response') + ' ' + op('=') + ' ' + kw('await') + ' ' + vr('client') + '.' + fn('PostAsync') + '(\n'
+      + '    ' + st('"' + url + '"') + ', ' + vr('content') + '\n'
+      + ');\n\n'
+      + kw('var') + ' ' + vr('result') + ' ' + op('=') + ' ' + kw('await') + ' ' + vr('response') + '.' + pr('Content') + '.' + fn('ReadAsStringAsync') + '();\n'
+      + ty('Console') + '.' + fn('WriteLine') + '(' + st('"✅ Status: "') + ' + ' + vr('response') + '.' + pr('StatusCode') + ');\n'
+      + ty('Console') + '.' + fn('WriteLine') + '(' + st('"📦 Response: "') + ' + ' + vr('result') + ');';
+  }
+  function rawCsharp() {
+    var url = whUrl(), body = rawBody();
+    var escapedBody = body.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return 'using System.Net.Http;\nusing System.Text;\nusing System.Text.Json;\n\n// Webhook Simulator — send payload to EVP gateway\nvar jsonBody = "' + escapedBody + '";\nvar content = new StringContent(\n    jsonBody, Encoding.UTF8, "application/json"\n);\n\nusing var client = new HttpClient();\nvar response = await client.PostAsync(\n    "' + url + '", content\n);\n\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine("✅ Status: " + response.StatusCode);\nConsole.WriteLine("📦 Response: " + result);';
+  }
+
+  function genCpp() {
+    var url = whUrl(), body = rawBody();
+    return kw('#include') + ' ' + st('&lt;curl/curl.h&gt;') + '\n'
+      + kw('#include') + ' ' + st('&lt;iostream&gt;') + '\n'
+      + kw('#include') + ' ' + st('&lt;string&gt;') + '\n\n'
+      + cmt('// Webhook Simulator — requires libcurl') + '\n'
+      + cmt('// Install: brew install curl  /  apt install libcurl4-openssl-dev') + '\n\n'
+      + kw('int') + ' ' + fn('main') + '() {\n'
+      + '    ' + ty('CURL') + op('*') + ' ' + vr('curl') + ' ' + op('=') + ' ' + fn('curl_easy_init') + '();\n'
+      + '    ' + kw('if') + ' (!' + vr('curl') + ') ' + kw('return') + ' ' + num('1') + ';\n\n'
+      + '    ' + ty('std') + '::' + ty('string') + ' ' + vr('url') + ' ' + op('=') + ' ' + st('"' + url + '"') + ';\n'
+      + '    ' + ty('std') + '::' + ty('string') + ' ' + vr('payload') + ' ' + op('=') + ' ' + st('R"(' + esc(body) + ')"') + ';\n\n'
+      + '    ' + kw('struct') + ' ' + ty('curl_slist') + op('*') + ' ' + vr('headers') + ' ' + op('=') + ' ' + kw('nullptr') + ';\n'
+      + '    ' + vr('headers') + ' ' + op('=') + ' ' + fn('curl_slist_append') + '(' + vr('headers') + ', ' + st('"Content-Type: application/json"') + ');\n\n'
+      + '    ' + fn('curl_easy_setopt') + '(' + vr('curl') + ', ' + ty('CURLOPT_URL') + ',        ' + vr('url') + '.' + fn('c_str') + '());\n'
+      + '    ' + fn('curl_easy_setopt') + '(' + vr('curl') + ', ' + ty('CURLOPT_POST') + ',       ' + num('1L') + ');\n'
+      + '    ' + fn('curl_easy_setopt') + '(' + vr('curl') + ', ' + ty('CURLOPT_POSTFIELDS') + ',  ' + vr('payload') + '.' + fn('c_str') + '());\n'
+      + '    ' + fn('curl_easy_setopt') + '(' + vr('curl') + ', ' + ty('CURLOPT_HTTPHEADER') + ',  ' + vr('headers') + ');\n\n'
+      + '    ' + ty('CURLcode') + ' ' + vr('res') + ' ' + op('=') + ' ' + fn('curl_easy_perform') + '(' + vr('curl') + ');\n'
+      + '    ' + kw('if') + ' (' + vr('res') + ' ' + op('!=') + ' ' + ty('CURLE_OK') + ')\n'
+      + '        ' + ty('std') + '::' + vr('cerr') + ' ' + op('&lt;&lt;') + ' ' + st('"❌ "'') + ' ' + op('&lt;&lt;') + ' ' + fn('curl_easy_strerror') + '(' + vr('res') + ') ' + op('&lt;&lt;') + ' ' + ty('std') + '::' + vr('endl') + ';\n\n'
+      + '    ' + fn('curl_slist_free_all') + '(' + vr('headers') + ');\n'
+      + '    ' + fn('curl_easy_cleanup') + '(' + vr('curl') + ');\n'
+      + '    ' + kw('return') + ' ' + num('0') + ';\n'
+      + '}';
+  }
+  function rawCpp() {
+    var url = whUrl(), body = rawBody();
+    return '#include <curl/curl.h>\n#include <iostream>\n#include <string>\n\n// Webhook Simulator — requires libcurl\n\nint main() {\n    CURL* curl = curl_easy_init();\n    if (!curl) return 1;\n\n    std::string url = "' + url + '";\n    std::string payload = R"(' + body + ')";\n\n    struct curl_slist* headers = nullptr;\n    headers = curl_slist_append(headers, "Content-Type: application/json");\n\n    curl_easy_setopt(curl, CURLOPT_URL,       url.c_str());\n    curl_easy_setopt(curl, CURLOPT_POST,      1L);\n    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());\n    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);\n\n    CURLcode res = curl_easy_perform(curl);\n    if (res != CURLE_OK)\n        std::cerr << "❌ " << curl_easy_strerror(res) << std::endl;\n\n    curl_slist_free_all(headers);\n    curl_easy_cleanup(curl);\n    return 0;\n}';
+  }
+
+  function genPhp() {
+    var url = whUrl(), body = rawBody();
+    var escapedBody = body.replace(/'/g, "\\'");
+    return kw('&lt;?php') + '\n'
+      + cmt('// Webhook Simulator — send payload to EVP gateway') + '\n\n'
+      + vr('$payload') + ' ' + op('=') + ' ' + fn('json_decode') + '(' + st("'" + escapedBody + "'") + ', ' + kw('true') + ');\n\n'
+      + vr('$ch') + ' ' + op('=') + ' ' + fn('curl_init') + '(' + st("'" + url + "'") + ');\n'
+      + fn('curl_setopt') + '(' + vr('$ch') + ', ' + ty('CURLOPT_POST') + ',            ' + kw('true') + ');\n'
+      + fn('curl_setopt') + '(' + vr('$ch') + ', ' + ty('CURLOPT_POSTFIELDS') + ',      ' + fn('json_encode') + '(' + vr('$payload') + '));\n'
+      + fn('curl_setopt') + '(' + vr('$ch') + ', ' + ty('CURLOPT_HTTPHEADER') + ',      [' + st("'Content-Type: application/json'") + ']);\n'
+      + fn('curl_setopt') + '(' + vr('$ch') + ', ' + ty('CURLOPT_RETURNTRANSFER') + ', ' + kw('true') + ');\n\n'
+      + vr('$result') + ' ' + op('=') + ' ' + fn('curl_exec') + '(' + vr('$ch') + ');\n'
+      + vr('$status') + ' ' + op('=') + ' ' + fn('curl_getinfo') + '(' + vr('$ch') + ', ' + ty('CURLINFO_HTTP_CODE') + ');\n'
+      + fn('curl_close') + '(' + vr('$ch') + ');\n\n'
+      + kw('echo') + ' ' + st('"✅ Status: "') + ' . ' + vr('$status') + ' . ' + st('"\\n"') + ';\n'
+      + kw('echo') + ' ' + st('"📦 Response: "') + ' . ' + vr('$result') + ' . ' + st('"\\n"') + ';';
+  }
+  function rawPhp() {
+    var url = whUrl(), body = rawBody();
+    return "<?php\n// Webhook Simulator — send payload to EVP gateway\n\n$payload = json_decode('" + body.replace(/'/g, "\\'") + "', true);\n\n$ch = curl_init('" + url + "');\ncurl_setopt($ch, CURLOPT_POST,            true);\ncurl_setopt($ch, CURLOPT_POSTFIELDS,      json_encode($payload));\ncurl_setopt($ch, CURLOPT_HTTPHEADER,      ['Content-Type: application/json']);\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\n\n$result = curl_exec($ch);\n$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);\ncurl_close($ch);\n\necho \"✅ Status: \" . $status . \"\\n\";\necho \"📦 Response: \" . $result . \"\\n\";";
+  }
+
+  function genHtml() {
+    var url = whUrl(), body = rawBody();
+    return kw('&lt;!DOCTYPE html&gt;') + '\n'
+      + kw('&lt;html') + ' ' + pr('lang') + op('=') + st('"en"') + kw('&gt;') + '\n'
+      + kw('&lt;head&gt;') + '\n'
+      + '  ' + kw('&lt;meta') + ' ' + pr('charset') + op('=') + st('"UTF-8"') + kw('&gt;') + '\n'
+      + '  ' + kw('&lt;title&gt;') + 'Webhook Simulator' + kw('&lt;/title&gt;') + '\n'
+      + kw('&lt;/head&gt;') + '\n'
+      + kw('&lt;body&gt;') + '\n'
+      + '  ' + kw('&lt;button') + ' ' + pr('onclick') + op('=') + st('"sendWebhook()"') + kw('&gt;') + 'Send Webhook' + kw('&lt;/button&gt;') + '\n'
+      + '  ' + kw('&lt;pre') + ' ' + pr('id') + op('=') + st('"output"') + kw('&gt;&lt;/pre&gt;') + '\n'
+      + kw('&lt;script&gt;') + '\n'
+      + '  ' + kw('async function') + ' ' + fn('sendWebhook') + '() {\n'
+      + '    ' + kw('const') + ' ' + vr('payload') + ' ' + op('=') + ' ' + esc(body) + ';\n'
+      + '    ' + kw('const') + ' ' + vr('res') + ' ' + op('=') + ' ' + kw('await') + ' ' + fn('fetch') + '(' + st('"' + url + '"') + ', {\n'
+      + '      ' + pr('method') + ': ' + st('"POST"') + ',\n'
+      + '      ' + pr('headers') + ': { ' + st('"Content-Type"') + ': ' + st('"application/json"') + ' },\n'
+      + '      ' + pr('body') + ': ' + ty('JSON') + '.' + fn('stringify') + '(' + vr('payload') + ')\n'
+      + '    });\n'
+      + '    ' + kw('const') + ' ' + vr('data') + ' ' + op('=') + ' ' + kw('await') + ' ' + vr('res') + '.' + fn('json') + '();\n'
+      + '    ' + vr('document') + '.' + fn('getElementById') + '(' + st('"output"') + ').' + pr('textContent') + ' ' + op('=') + ' ' + ty('JSON') + '.' + fn('stringify') + '(' + vr('data') + ', ' + kw('null') + ', ' + num('2') + ');\n'
+      + '  }\n'
+      + kw('&lt;/script&gt;') + '\n'
+      + kw('&lt;/body&gt;') + '\n'
+      + kw('&lt;/html&gt;');
+  }
+  function rawHtml() {
+    var url = whUrl(), body = rawBody();
+    return '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Webhook Simulator</title>\n</head>\n<body>\n  <button onclick="sendWebhook()">Send Webhook</button>\n  <pre id="output"></pre>\n<script>\n  async function sendWebhook() {\n    const payload = ' + body + ';\n    const res = await fetch("' + url + '", {\n      method: "POST",\n      headers: { "Content-Type": "application/json" },\n      body: JSON.stringify(payload)\n    });\n    const data = await res.json();\n    document.getElementById("output").textContent = JSON.stringify(data, null, 2);\n  }\n<\/script>\n</body>\n</html>';
+  }
+
+  var generators = { nodejs: genNodejs, js: genJs, python: genPython, csharp: genCsharp, cpp: genCpp, php: genPhp, html: genHtml };
+  var rawGens    = { nodejs: rawNodejs, js: rawJs, python: rawPython, csharp: rawCsharp, cpp: rawCpp, php: rawPhp, html: rawHtml };
+
+  function updateExamples() {
+    Object.keys(generators).forEach(function (lang) {
+      var el = document.getElementById('wh-code-' + lang);
+      if (el) el.innerHTML = generators[lang]();
+    });
+  }
+
+  /* lang tab switching */
+  document.querySelectorAll('.wh-lang-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.wh-lang-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.wh-lang-body').forEach(function (b) { b.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = document.getElementById('wh-lang-' + tab.getAttribute('data-lang'));
+      if (target) target.classList.add('active');
+    });
+  });
+
+  /* copy buttons */
+  document.querySelectorAll('.wh-copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var lang = btn.getAttribute('data-copy');
+      if (!rawGens[lang]) return;
+      navigator.clipboard.writeText(rawGens[lang]()).then(function () {
+        btn.classList.add('copied');
+        var orig = btn.innerHTML;
+        btn.innerHTML = btn.innerHTML.replace(/Copy/i, 'Copied!');
+        setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
+      });
+    });
+  });
+
+  /* live update on payload or pid change */
+  if (payloadEl)  payloadEl.addEventListener('input', updateExamples);
+  if (pidInputEl) pidInputEl.addEventListener('input', updateExamples);
+
+  updateExamples();
+})();
+</script>
+
+<%- include('partials/visto-bottom') %>

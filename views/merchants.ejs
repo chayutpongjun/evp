@@ -1,0 +1,880 @@
+<%- include('partials/visto-top', {
+  title: 'Merchants • EVP Gateway',
+  active: 'merchant-list',
+  pageTitle: 'Merchants • EVP Gateway',
+  pageSubtitle: 'Manage merchants, terminal IDs, and gateway configurations.',
+  merchant
+}) %>
+
+<style>
+  /* ── Signal Dashboard overrides for this page ── */
+  .sig-page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .sig-page-head h2 { margin: 0; font-size: 22px; font-weight: 700; color: #fff; }
+  .sig-page-head p  { margin: 4px 0 0; font-size: 13px; color: #6b7280; }
+
+  /* Add button */
+  .sig-add-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #000;
+    background: #00e676;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .sig-add-btn:hover { background: #00ff8a; }
+
+  /* Filter tabs */
+  .sig-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+  }
+  .sig-tab {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .sig-tab.active,
+  .sig-tab:hover {
+    background: #111827;
+    border-color: #1f2937;
+    color: #e5e7eb;
+  }
+  .sig-tab.active { color: #fff; }
+
+  /* Toolbar row */
+  .sig-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 0;
+  }
+  .sig-search-wrap {
+    position: relative;
+    width: 280px;
+  }
+  .sig-search-wrap svg {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+    pointer-events: none;
+  }
+  .sig-search-wrap input {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    background: #0d1117;
+    color: #e5e7eb;
+    font-size: 13px;
+    outline: none;
+  }
+  .sig-search-wrap input::placeholder { color: #4b5563; }
+  .sig-search-wrap input:focus { border-color: #374151; }
+  .sig-toolbar-right { display: flex; gap: 8px; }
+  .sig-icon-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    background: #0d1117;
+    color: #9ca3af;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .sig-icon-btn:hover { border-color: #374151; color: #e5e7eb; }
+
+  /* Table panel */
+  .sig-panel {
+    border: 1px solid #111827;
+    border-radius: 12px;
+    background: #060b14;
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .sig-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .sig-panel thead tr {
+    background: #060b14;
+    border-bottom: 1px solid #111827;
+  }
+  .sig-panel th {
+    padding: 11px 14px;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+    letter-spacing: .3px;
+  }
+  .sig-panel th .sort-wrap {
+    display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;
+  }
+  .sig-panel th .sort-wrap:hover { color: #9ca3af; }
+  .sig-panel th .sort-ico { opacity: .45; font-size: 10px; }
+
+  .sig-panel tbody tr {
+    border-bottom: 1px solid #0d1117;
+    transition: background .1s;
+  }
+  .sig-panel tbody tr:last-child { border-bottom: none; }
+  .sig-panel tbody tr:hover { background: rgba(255,255,255,.025); }
+
+  .sig-panel td {
+    padding: 11px 14px;
+    color: #d1d5db;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 13px;
+  }
+
+  /* Avatar */
+  .sig-avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .sig-name-cell { display: flex; align-items: center; gap: 10px; }
+  .sig-name-cell .nm { font-size: 13px; font-weight: 600; color: #e5e7eb; }
+  .sig-name-cell .sub { font-size: 11px; color: #4b5563; font-family: monospace; }
+
+  /* Badges */
+  .sig-badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .sig-badge.green  { background: rgba(0,230,118,.12); color: #00e676; border: 1px solid rgba(0,230,118,.25); }
+  .sig-badge.gray   { background: rgba(107,114,128,.12); color: #9ca3af; border: 1px solid rgba(107,114,128,.25); }
+  .sig-badge.amber  { background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.25); }
+  .sig-badge.blue   { background: rgba(59,130,246,.12); color: #60a5fa; border: 1px solid rgba(59,130,246,.25); }
+  .sig-badge.purple { background: rgba(139,92,246,.12); color: #a78bfa; border: 1px solid rgba(139,92,246,.25); }
+
+  /* Status dot */
+  .sig-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px;
+  }
+  .sig-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sig-dot.on  { background: #00e676; box-shadow: 0 0 0 3px rgba(0,230,118,.18); }
+  .sig-dot.off { background: #374151; }
+
+  /* Action icons */
+  .sig-actions { display: flex; align-items: center; gap: 6px; }
+  .sig-action-btn {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    border: 1px solid #1f2937;
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #6b7280;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .sig-action-btn:hover { border-color: #374151; color: #e5e7eb; background: #111827; }
+  .sig-action-btn.red:hover { border-color: rgba(239,68,68,.4); color: #f87171; background: rgba(239,68,68,.06); }
+
+  /* Make Active pill btn */
+  .sig-activate-btn {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,230,118,.3);
+    background: rgba(0,230,118,.06);
+    color: #00e676;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .sig-activate-btn:hover { background: rgba(0,230,118,.14); }
+
+  /* Empty state */
+  .sig-empty {
+    text-align: center; padding: 48px 20px;
+    color: #4b5563; font-size: 13px;
+  }
+
+  /* ── Toggle Switch ── */
+  .sig-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .sig-toggle {
+    position: relative;
+    width: 36px; height: 20px;
+    flex-shrink: 0;
+  }
+  .sig-toggle input { display: none; }
+  .sig-toggle-track {
+    position: absolute; inset: 0;
+    border-radius: 999px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    transition: background .2s, border-color .2s;
+  }
+  .sig-toggle input:checked + .sig-toggle-track {
+    background: rgba(0,230,118,.18);
+    border-color: rgba(0,230,118,.45);
+  }
+  .sig-toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #4b5563;
+    transition: transform .2s, background .2s;
+  }
+  .sig-toggle input:checked ~ .sig-toggle-thumb {
+    transform: translateX(16px);
+    background: #00e676;
+    box-shadow: 0 0 6px rgba(0,230,118,.55);
+  }
+  .sig-toggle-label {
+    font-size: 12px;
+    color: #6b7280;
+    min-width: 48px;
+    transition: color .2s;
+  }
+  .sig-toggle-wrap.on .sig-toggle-label { color: #00e676; }
+
+  /* ── Confirm Dialog ── */
+  .sig-confirm-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.65);
+    display: none; align-items: center; justify-content: center;
+    z-index: 60;
+    backdrop-filter: blur(4px);
+  }
+  .sig-confirm-box {
+    background: #060b14;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 24px 26px;
+    width: 340px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7);
+    text-align: center;
+  }
+  .sig-confirm-icon {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.06);
+    border: 1px solid #1f2937;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+    font-size: 20px;
+  }
+  .sig-confirm-box h4 {
+    margin: 0 0 6px; font-size: 15px; color: #e5e7eb; font-weight: 700;
+  }
+  .sig-confirm-box p {
+    margin: 0 0 20px; font-size: 13px; color: #6b7280; line-height: 1.5;
+  }
+  .sig-confirm-btns {
+    display: flex; gap: 10px; justify-content: center;
+  }
+  .sig-confirm-btns button {
+    flex: 1;
+    padding: 9px 0;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .sig-confirm-btns button:hover { opacity: .85; }
+  .sig-confirm-cancel {
+    background: #111827;
+    border: 1px solid #1f2937!important;
+    color: #9ca3af!important;
+  }
+
+  @keyframes slideUp {
+    from { opacity:0; transform:translateY(10px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* Avatar color palette */
+  .av-0 { background: linear-gradient(135deg,#4f46e5,#7c3aed); }
+  .av-1 { background: linear-gradient(135deg,#0284c7,#0ea5e9); }
+  .av-2 { background: linear-gradient(135deg,#16a34a,#22c55e); }
+  .av-3 { background: linear-gradient(135deg,#d97706,#f59e0b); }
+  .av-4 { background: linear-gradient(135deg,#db2777,#ec4899); }
+  .av-5 { background: linear-gradient(135deg,#0891b2,#06b6d4); }
+  .av-6 { background: linear-gradient(135deg,#65a30d,#84cc16); }
+  .av-7 { background: linear-gradient(135deg,#7c3aed,#a78bfa); }
+</style>
+
+<!-- Page heading -->
+<div class="sig-page-head">
+  <div>
+    <h2>Merchants</h2>
+    <p>Manage merchants, terminal IDs, and gateway configurations.</p>
+  </div>
+  <button class="sig-add-btn" id="btnNew" type="button">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Merchant
+  </button>
+</div>
+
+<!-- Filter tabs -->
+<div class="sig-tabs">
+  <button class="sig-tab active" data-filter="all">All</button>
+  <button class="sig-tab" data-filter="active">Active</button>
+  <button class="sig-tab" data-filter="inactive">Inactive</button>
+</div>
+
+<!-- Toolbar: search + columns + export -->
+<div class="sig-toolbar">
+  <div class="sig-search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input id="q" placeholder="Search merchants…" />
+  </div>
+  <div class="sig-toolbar-right">
+    <button class="sig-icon-btn" type="button" id="btnColumns">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><line x1="19" y1="9" x2="22" y2="12"/><line x1="22" y1="12" x2="19" y2="15"/></svg>
+      Columns
+    </button>
+    <button class="sig-icon-btn" type="button" id="btnExport">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </button>
+  </div>
+</div>
+
+<!-- Table panel -->
+<div class="sig-panel">
+  <table>
+    <thead>
+      <tr>
+        <th><span class="sort-wrap" data-col="name">Merchant Name <span class="sort-ico">↑↓</span></span></th>
+        <th><span class="sort-wrap" data-col="partner">Partner ID <span class="sort-ico">↑↓</span></span></th>
+        <th><span class="sort-wrap" data-col="terminal">Terminal ID <span class="sort-ico">↑↓</span></span></th>
+        <th><span class="sort-wrap" data-col="branch">Branch ID <span class="sort-ico">↑↓</span></span></th>
+        <th>BASE URL</th>
+        <th><span class="sort-wrap" data-col="status">Status <span class="sort-ico">↑↓</span></span></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <% (merchants || []).forEach(function(m, idx){ %>
+        <%
+          var initials = (m.Merchant_Name || '??').trim().split(/\s+/).slice(0,2).map(function(w){ return w[0]; }).join('').toUpperCase();
+          var avClass = 'av-' + (idx % 8);
+          var partnerColors = ['blue','purple','amber','green','gray'];
+          var partnerClass = partnerColors[Math.abs((m.Partner_ID || '').split('').reduce(function(a,c){ return a + c.charCodeAt(0); }, 0)) % partnerColors.length];
+        %>
+        <tr
+          data-key="<%= [m.Terminal_ID, m.Merchant_ID, m.Branch_ID].join('|') %>"
+          data-filter-status="<%= m.IsActive ? 'active' : 'inactive' %>"
+          data-search="<%= (m.Terminal_ID + ' ' + m.Merchant_ID + ' ' + m.Branch_ID + ' ' + (m.Merchant_Name || '') + ' ' + (m.Partner_ID || '')).toLowerCase() %>"
+        >
+          <!-- Merchant Name -->
+          <td>
+            <div class="sig-name-cell">
+              <span class="sig-avatar <%= avClass %>"><%= initials %></span>
+              <div>
+                <div class="nm"><%= m.Merchant_Name || '—' %></div>
+                <div class="sub"><%= m.Merchant_ID %></div>
+              </div>
+            </div>
+          </td>
+
+          <!-- Partner ID -->
+          <td><span class="sig-badge <%= partnerClass %>"><%= m.Partner_ID || '—' %></span></td>
+
+          <!-- Terminal ID -->
+          <td style="font-family:monospace;font-size:12px;color:#9ca3af;"><%= m.Terminal_ID %></td>
+
+          <!-- Branch ID -->
+          <td style="font-family:monospace;font-size:12px;color:#9ca3af;"><%= m.Branch_ID %></td>
+
+          <!-- BASE URL -->
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#4b5563;" title="<%= m.BASE_URL %>">
+            <%= m.BASE_URL || '—' %>
+          </td>
+
+          <!-- Status toggle -->
+          <td>
+            <label class="sig-toggle-wrap <%= m.IsActive ? 'on' : '' %>"
+                   data-terminal-id="<%= m.Terminal_ID %>"
+                   data-merchant-id="<%= m.Merchant_ID %>"
+                   data-branch-id="<%= m.Branch_ID %>">
+              <span class="sig-toggle">
+                <input type="checkbox" class="statusToggle" <%= m.IsActive ? 'checked' : '' %> />
+                <span class="sig-toggle-track"></span>
+                <span class="sig-toggle-thumb"></span>
+              </span>
+              <span class="sig-toggle-label"><%= m.IsActive ? 'Active' : 'Inactive' %></span>
+            </label>
+          </td>
+
+          <!-- Actions -->
+          <td>
+            <div class="sig-actions">
+              <!-- Edit -->
+              <button
+                class="sig-action-btn moreBtn"
+                type="button"
+                title="Edit"
+                data-mode="edit"
+                data-terminal-id="<%= m.Terminal_ID %>"
+                data-merchant-id="<%= m.Merchant_ID %>"
+                data-branch-id="<%= m.Branch_ID %>"
+                data-partner-id="<%= m.Partner_ID %>"
+                data-name="<%- m.Merchant_Name %>"
+                data-base-url="<%- m.BASE_URL %>"
+                data-apikey="<%- m.ApiKey %>"
+                data-active="<%= m.IsActive ? '1' : '0' %>"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+              <!-- Delete -->
+              <button
+                class="sig-action-btn red deleteBtn"
+                type="button"
+                title="Delete"
+                data-key="<%= [m.Terminal_ID, m.Merchant_ID, m.Branch_ID].join('|') %>"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (!(merchants && merchants.length)) { %>
+        <tr><td colspan="7"><div class="sig-empty">No merchants found.</div></td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Confirm Status Dialog ── -->
+<div id="confirmModal" class="sig-confirm-backdrop">
+  <div class="sig-confirm-box">
+    <div class="sig-confirm-icon" id="confirmIcon">⚡</div>
+    <h4 id="confirmMsg">Change Status?</h4>
+    <p id="confirmSubMsg"></p>
+    <div class="sig-confirm-btns">
+      <button type="button" class="sig-confirm-cancel" id="confirmCancelBtn">Cancel</button>
+      <button type="button" id="confirmOkBtn" style="color:#000;">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal ── -->
+<div id="merchantModal" style="position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(3px);">
+  <div style="background:#060b14;border-radius:14px;max-width:700px;width:calc(100% - 32px);border:1px solid #1f2937;box-shadow:0 30px 80px rgba(0,0,0,.7);padding:20px 22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <h3 style="margin:0 0 4px;font-size:16px;color:#e5e7eb;" id="modalTitle">Merchant</h3>
+        <p id="modalSubtitle" style="margin:0;font-size:12px;color:#6b7280;"></p>
+      </div>
+      <button type="button" id="btnCloseModal" style="border:none;background:transparent;color:#6b7280;font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <form id="merchantForm">
+      <div class="grid">
+        <div>
+          <label>BASE_URL</label>
+          <input name="baseUrl" id="f_baseUrl" placeholder="https://api.sandbox.evp-pay.tech" required />
+        </div>
+        <div>
+          <label>Terminal_ID</label>
+          <input name="terminalId" id="f_terminalId" required />
+        </div>
+        <div>
+          <label>Partner_ID</label>
+          <input name="partnerId" id="f_partnerId" required />
+        </div>
+        <div>
+          <label>Merchant_ID</label>
+          <input name="merchantId" id="f_merchantId" required />
+        </div>
+        <div>
+          <label>Branch_ID</label>
+          <input name="branchId" id="f_branchId" required />
+        </div>
+        <div>
+          <label>Merchant_Name</label>
+          <input name="merchantName" id="f_merchantName" required />
+        </div>
+        <div style="grid-column:1/-1;">
+          <label>ApiKey</label>
+          <input name="apiKey" id="f_apiKey" required />
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+        <span id="formStatus" style="font-size:12px;color:#6b7280;margin-right:auto;"></span>
+        <button type="button" class="btn secondary" id="btnCancelModal">Cancel</button>
+        <button type="submit" class="btn" id="btnSave">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var q        = document.getElementById('q');
+  var rows     = document.getElementById('rows');
+  var modal    = document.getElementById('merchantModal');
+  var btnNew   = document.getElementById('btnNew');
+  var btnClose = document.getElementById('btnCloseModal');
+  var btnCancel= document.getElementById('btnCancelModal');
+  var form     = document.getElementById('merchantForm');
+  var formStatus = document.getElementById('formStatus');
+  var modalTitle = document.getElementById('modalTitle');
+  var subtitle = document.getElementById('modalSubtitle');
+  var f_baseUrl    = document.getElementById('f_baseUrl');
+  var f_terminalId = document.getElementById('f_terminalId');
+  var f_partnerId  = document.getElementById('f_partnerId');
+  var f_merchantId = document.getElementById('f_merchantId');
+  var f_branchId   = document.getElementById('f_branchId');
+  var f_merchantName = document.getElementById('f_merchantName');
+  var f_apiKey     = document.getElementById('f_apiKey');
+  var btnSave      = document.getElementById('btnSave');
+
+  // Track original composite key for edits to prevent accidental inserts
+  var origTerminalId = '';
+  var origMerchantId = '';
+  var origBranchId   = '';
+
+  var currentFilter = 'all';
+
+  /* ── Filter tabs ── */
+  document.querySelectorAll('.sig-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.sig-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      currentFilter = tab.getAttribute('data-filter');
+      applyFilters();
+    });
+  });
+
+  /* ── Search ── */
+  if (q) q.addEventListener('input', applyFilters);
+
+  function applyFilters() {
+    var s = String(q ? q.value || '' : '').trim().toLowerCase();
+    var trs = rows.querySelectorAll('tr');
+    trs.forEach(function (tr) {
+      var hay    = tr.getAttribute('data-search') || '';
+      var status = tr.getAttribute('data-filter-status') || '';
+      var matchSearch = !s || hay.indexOf(s) !== -1;
+      var matchFilter = currentFilter === 'all' || status === currentFilter;
+      tr.style.display = matchSearch && matchFilter ? '' : 'none';
+    });
+  }
+
+  /* ── Edit buttons ── */
+  rows.addEventListener('click', function (e) {
+    var editBtn = e.target.closest('.moreBtn');
+    var delBtn  = e.target.closest('.deleteBtn');
+
+    if (editBtn) {
+      openForEdit(editBtn, editBtn.getAttribute('data-mode') || 'edit');
+      return;
+    }
+    if (delBtn) {
+      var key = (delBtn.getAttribute('data-key') || '').split('|');
+      if (key.length !== 3) return;
+      var tr  = delBtn.closest('tr');
+      var nm  = tr ? (tr.querySelector('.nm') || {}).textContent || '' : key[0];
+      openConfirm({
+        icon:    '🗑️',
+        title:   'Delete merchant?',
+        sub:     'ลบ <strong>' + nm.trim() + '</strong> ออกจาก Tbl_EVPMerchant<br><span style="color:#f87171;font-size:11px;">การกระทำนี้ไม่สามารถย้อนกลับได้</span>',
+        okLabel: 'Delete',
+        okColor: 'linear-gradient(135deg,#b91c1c,#ef4444)',
+        onOk: function () {
+          var f = document.createElement('form');
+          f.method = 'POST';
+          f.action = '/admin/merchants/' +
+            encodeURIComponent(key[0]) + '/' +
+            encodeURIComponent(key[1]) + '/' +
+            encodeURIComponent(key[2]) + '/delete';
+          document.body.appendChild(f);
+          f.submit();
+        }
+      });
+      return;
+    }
+  });
+
+  function openModal()  { modal.style.display = 'flex'; }
+  function closeModal() { modal.style.display = 'none'; if (formStatus) formStatus.textContent = ''; }
+
+  function setReadOnly(isReadOnly) {
+    [f_baseUrl, f_terminalId, f_partnerId, f_merchantId, f_branchId, f_merchantName, f_apiKey].forEach(function (el) {
+      if (el) el.readOnly = !!isReadOnly;
+    });
+    if (btnSave) btnSave.style.display = isReadOnly ? 'none' : '';
+  }
+
+  function openForEdit(btn, mode) {
+    var isNew  = !btn;
+    var isView = mode === 'view';
+    if (modalTitle) modalTitle.textContent = isNew ? 'New Merchant' : (isView ? 'View Merchant' : 'Edit Merchant');
+    if (subtitle)   subtitle.textContent   = isNew
+      ? 'Create a new merchant row in Tbl_EVPMerchant'
+      : (isView ? 'Read-only — copy values as needed' : 'Edit merchant and save back to Tbl_EVPMerchant');
+    if (isNew) {
+      f_baseUrl.value = '';  f_terminalId.value = ''; f_partnerId.value = '';
+      f_merchantId.value = ''; f_branchId.value = ''; f_merchantName.value = ''; f_apiKey.value = '';
+      origTerminalId = '';
+      origMerchantId = '';
+      origBranchId   = '';
+    } else if (btn) {
+      f_baseUrl.value      = btn.getAttribute('data-base-url')   || '';
+      f_terminalId.value   = btn.getAttribute('data-terminal-id')|| '';
+      f_partnerId.value    = btn.getAttribute('data-partner-id') || '';
+      f_merchantId.value   = btn.getAttribute('data-merchant-id')|| '';
+      f_branchId.value     = btn.getAttribute('data-branch-id')  || '';
+      f_merchantName.value = btn.getAttribute('data-name')       || '';
+      f_apiKey.value       = btn.getAttribute('data-apikey')     || '';
+
+      origTerminalId = f_terminalId.value;
+      origMerchantId = f_merchantId.value;
+      origBranchId   = f_branchId.value;
+    }
+    setReadOnly(isView);
+    openModal();
+    if (f_baseUrl) f_baseUrl.focus();
+  }
+
+  if (btnNew)    btnNew.addEventListener('click',   function () { openForEdit(null); });
+  if (btnClose)  btnClose.addEventListener('click',  closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  /* close on backdrop click */
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+  /* Save — intercept submit, confirm, then actually save */
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var isNew = !f_terminalId.value || modalTitle.textContent === 'New Merchant';
+    var nm    = f_merchantName.value.trim() || f_merchantId.value || '—';
+    openConfirm({
+      icon:    '💾',
+      title:   isNew ? 'Create merchant?' : 'Save changes?',
+      sub:     isNew
+        ? 'เพิ่ม <strong>' + nm + '</strong> ลง Tbl_EVPMerchant'
+        : 'บันทึกการเปลี่ยนแปลงของ <strong>' + nm + '</strong>',
+      okLabel: isNew ? 'Create' : 'Save',
+      okColor: 'linear-gradient(135deg,#0369a1,#38bdf8)',
+      onOk: function () {
+        if (formStatus) formStatus.textContent = 'Saving…';
+        var data = {
+          baseUrl: f_baseUrl.value, terminalId: f_terminalId.value,
+          partnerId: f_partnerId.value, merchantId: f_merchantId.value,
+          branchId: f_branchId.value, merchantName: f_merchantName.value,
+          apiKey: f_apiKey.value,
+          originalTerminalId: origTerminalId,
+          originalMerchantId: origMerchantId,
+          originalBranchId: origBranchId
+        };
+        fetch('/admin/merchants/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+        .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
+        .then(function (r) {
+          if (!r.ok || !r.body.ok) {
+            if (formStatus) formStatus.textContent = (r.body && r.body.message) || 'Save failed';
+            return;
+          }
+          if (formStatus) formStatus.textContent = 'Saved. Reloading…';
+          setTimeout(function () { window.location.reload(); }, 500);
+        })
+        .catch(function (err) {
+          if (formStatus) formStatus.textContent = err && err.message ? err.message : 'Error';
+        });
+      }
+    });
+  });
+
+  /* ── Generic Confirm Dialog (shared by toggle / save / delete) ── */
+  var confirmModal     = document.getElementById('confirmModal');
+  var confirmIcon      = document.getElementById('confirmIcon');
+  var confirmMsg       = document.getElementById('confirmMsg');
+  var confirmSubMsg    = document.getElementById('confirmSubMsg');
+  var confirmOkBtn     = document.getElementById('confirmOkBtn');
+  var confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  var pendingAction    = null;   // { onOk: fn }
+
+  /* opts = { icon, title, sub, okLabel, okColor, onOk } */
+  function openConfirm(opts) {
+    pendingAction = opts;
+    if (confirmIcon)   confirmIcon.textContent     = opts.icon    || '❓';
+    if (confirmMsg)    confirmMsg.textContent       = opts.title   || 'Confirm?';
+    if (confirmSubMsg) confirmSubMsg.innerHTML      = opts.sub     || '';
+    if (confirmOkBtn) {
+      confirmOkBtn.textContent      = opts.okLabel || 'Confirm';
+      confirmOkBtn.style.background = opts.okColor || 'linear-gradient(135deg,#4f46e5,#7c3aed)';
+    }
+    confirmModal.style.display = 'flex';
+  }
+
+  function closeConfirm(proceed) {
+    confirmModal.style.display = 'none';
+    var p = pendingAction;
+    pendingAction = null;
+    if (proceed && p && p.onOk) p.onOk();
+  }
+
+  if (confirmOkBtn)     confirmOkBtn.addEventListener('click',    function () { closeConfirm(true);  });
+  if (confirmCancelBtn) confirmCancelBtn.addEventListener('click', function () { closeConfirm(false); });
+  if (confirmModal)     confirmModal.addEventListener('click', function (e) { if (e.target === confirmModal) closeConfirm(false); });
+
+  /* Toggle status (click anywhere on the control) */
+  document.querySelectorAll('.sig-toggle-wrap').forEach(function (wrap) {
+    wrap.addEventListener('click', function (e) {
+      // Prevent label default toggle; we will flip only after confirm
+      e.preventDefault();
+
+      var chk   = wrap.querySelector('.statusToggle');
+      if (!chk) return;
+
+      var label = wrap.querySelector('.sig-toggle-label');
+      var tid   = wrap.getAttribute('data-terminal-id') || '';
+      var mid   = wrap.getAttribute('data-merchant-id') || '';
+      var bid   = wrap.getAttribute('data-branch-id')   || '';
+      var newActive = !chk.checked;
+      var name  = (wrap.closest('tr')
+                    ? (wrap.closest('tr').querySelector('.nm') || {}).textContent || ''
+                    : '') || tid;
+      openConfirm({
+        icon:    newActive ? '✅' : '⏸️',
+        title:   newActive ? 'Activate merchant?' : 'Deactivate merchant?',
+        sub:     'Set <strong>' + name.trim() + '</strong> to '
+          + '<span style="color:' + (newActive ? '#00e676' : '#f87171') + ';font-weight:700;">'
+          + (newActive ? 'Active' : 'Inactive') + '</span>',
+        okLabel: newActive ? 'Activate' : 'Deactivate',
+        okColor: newActive
+          ? 'linear-gradient(135deg,#00c85a,#00e676)'
+          : 'linear-gradient(135deg,#dc2626,#f87171)',
+        onOk: function () {
+          chk.checked = newActive;
+          wrap.classList.toggle('on', newActive);
+          if (label) { label.textContent = newActive ? 'Active' : 'Inactive'; }
+          fetch(
+            '/admin/merchants/' +
+            encodeURIComponent(tid) + '/' +
+            encodeURIComponent(mid) + '/' +
+            encodeURIComponent(bid) + '/toggle-status',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isActive: newActive ? 1 : 0 })
+            }
+          )
+          .then(function (res) { return res.json(); })
+          .then(function (r) {
+            if (!r.ok) {
+              chk.checked = !newActive;
+              wrap.classList.toggle('on', !newActive);
+              if (label) { label.textContent = !newActive ? 'Active' : 'Inactive'; }
+              showToast(r.message || 'Toggle failed', 'error');
+            } else {
+              var tr = wrap.closest('tr');
+              if (tr) { tr.setAttribute('data-filter-status', newActive ? 'active' : 'inactive'); }
+              showToast((newActive ? 'Activated' : 'Deactivated') + ' successfully', 'ok');
+            }
+          })
+          .catch(function (err) {
+            chk.checked = !newActive;
+            wrap.classList.toggle('on', !newActive);
+            if (label) { label.textContent = !newActive ? 'Active' : 'Inactive'; }
+            showToast(err.message || 'Network error', 'error');
+          });
+        }
+      });
+    });
+  });
+
+  /* ── Toast notification ── */
+  function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = [
+      'position:fixed;bottom:24px;right:24px;z-index:999',
+      'padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600',
+      'color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.45)',
+      'animation:slideUp .25s ease',
+      'background:' + (type === 'ok' ? 'rgba(0,180,90,.9)' : 'rgba(200,30,30,.9)')
+    ].join(';');
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2800);
+  }
+
+  /* ── Export CSV ── */
+  document.getElementById('btnExport').addEventListener('click', function () {
+    var visibleRows = Array.from(rows.querySelectorAll('tr')).filter(function (tr) {
+      return tr.style.display !== 'none' && tr.getAttribute('data-key');
+    });
+    var lines = ['Merchant_Name,Merchant_ID,Terminal_ID,Branch_ID,Partner_ID,Status,BASE_URL'];
+    visibleRows.forEach(function (tr) {
+      var cells = tr.querySelectorAll('td');
+      if (cells.length < 6) return;
+      var name   = tr.querySelector('.nm')  ? tr.querySelector('.nm').textContent.trim()  : '';
+      var mid    = tr.querySelector('.sub') ? tr.querySelector('.sub').textContent.trim() : '';
+      var tid    = cells[2] ? cells[2].textContent.trim() : '';
+      var bid    = cells[3] ? cells[3].textContent.trim() : '';
+      var badge  = cells[1] ? cells[1].textContent.trim() : '';
+      var status = cells[4] ? cells[4].textContent.trim().replace(/\s+/g,' ') : '';
+      var url    = cells[5] ? cells[5].textContent.trim() : '';
+      lines.push([name,mid,tid,bid,badge,status,url].map(function(v){ return '"'+(v||'').replace(/"/g,'""')+'"'; }).join(','));
+    });
+    var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'merchants.csv';
+    a.click();
+  });
+})();
+</script>
+
+<%- include('partials/visto-bottom') %>

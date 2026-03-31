@@ -1,0 +1,153 @@
+<%- include('partials/visto-top', {
+  title: 'EVPPayment Report • EVP Gateway',
+  active: 'report',
+  pageTitle: 'EVPPayment Report',
+  pageSubtitle: 'รายงาน TOP 50 ล่าสุดจาก Tbl_EVPPayment',
+  merchant
+}) %>
+
+<div class="card">
+  <div class="hd">
+    <div>
+      <h3>รายการล่าสุด (SQL Server)</h3>
+      <span>TOP 50 • Tbl_EVPPayment</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div>
+          <label style="margin:0 0 6px;">เรียงลำดับ</label>
+          <select id="sortSelect" style="width:220px;padding:10px 12px;border-radius:12px;border:1px solid rgba(148,163,184,.18);background:rgba(2,6,23,.65);color:var(--text);">
+            <option value="desc" selected>ล่าสุด → เก่าสุด</option>
+            <option value="asc">เก่าสุด → ล่าสุด</option>
+          </select>
+        </div>
+        <div>
+          <label style="margin:0 0 6px;">Filter</label>
+          <input id="filterInput" placeholder="พิมพ์เพื่อค้นหา (TRN / Payment ID / Order / Status)" style="width:360px;" />
+        </div>
+      </div>
+      <button class="btn secondary" type="button" id="refreshBtn">Refresh</button>
+      <a class="btn" href="/payment">Create Payment</a>
+    </div>
+  </div>
+  <div class="bd scroll-x">
+    <table>
+      <thead>
+        <tr>
+          <th>Log_ID</th>
+          <th>Terminal_ID</th>
+          <th>Partner_ID</th>
+          <th>Merchant_ID</th>
+          <th>Ref_TRN</th>
+          <th>Res_Payment_ID</th>
+          <th>Res_Status</th>
+          <th>Amount</th>
+          <th>Order</th>
+          <th>Paid At (UTC)</th>
+          <th>Created (UTC)</th>
+        </tr>
+      </thead>
+      <tbody id="reportBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const rows = <%- JSON.stringify(logs || []) %>;
+
+  function statusPct(statusRaw) {
+    const s = String(statusRaw || '').toLowerCase();
+    if (s === 'created') return 0;
+    if (s === 'submitted') return 50;
+    if (s === 'completed') return 100;
+    return null;
+  }
+
+  function fmtDate(v) {
+    if (!v) return '';
+    try {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return String(v);
+      return d.toISOString();
+    } catch {
+      return String(v);
+    }
+  }
+
+  function render() {
+    const body = document.getElementById('reportBody');
+    const sort = document.getElementById('sortSelect').value;
+    const q = document.getElementById('filterInput').value.trim().toLowerCase();
+
+    let list = rows.slice();
+    list.sort((a, b) => {
+      const av = Number(a.Log_ID || 0);
+      const bv = Number(b.Log_ID || 0);
+      return sort === 'asc' ? (av - bv) : (bv - av);
+    });
+
+    if (q) {
+      list = list.filter(r => {
+        const hay = [
+          r.Ref_TRN,
+          r.Res_Payment_ID,
+          r.Res_Status,
+          r.Ref_Order_ID,
+          r.Partner_ID,
+          r.Terminal_ID,
+          r.Merchant_ID
+        ].map(x => String(x || '')).join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    if (!list.length) {
+      body.innerHTML = `<tr><td colspan="11" class="muted">ไม่พบข้อมูล</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = list.map(r => {
+      const pct = statusPct(r.Res_Status);
+      const pctLabel = pct === null ? 'N/A' : String(pct);
+      const badge = String(r.Res_Status || 'N/A');
+      const width = pct === null ? 0 : pct;
+      return `
+        <tr>
+          <td>${r.Log_ID ?? ''}</td>
+          <td>${r.Terminal_ID ?? ''}</td>
+          <td>${r.Partner_ID ?? ''}</td>
+          <td>${r.Merchant_ID ?? ''}</td>
+          <td>${r.Ref_TRN ?? ''}</td>
+          <td>${r.Res_Payment_ID ?? ''}</td>
+          <td>
+            <div class="status-wrap">
+              <div class="status-line">
+                <strong>${pctLabel}</strong>
+                <span class="badge">${badge}</span>
+              </div>
+              <div class="progress" title="0 = created, 50 = submitted, 100 = completed">
+                <div style="width:${width}%"></div>
+              </div>
+            </div>
+          </td>
+          <td>${r.Amount ?? ''}</td>
+          <td>${r.Ref_Order_ID ?? ''}</td>
+          <td>${fmtDate(r.Res_Paid_at)}</td>
+          <td>${fmtDate(r.CreatedAtUtc)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  document.getElementById('sortSelect').addEventListener('change', render);
+  document.getElementById('filterInput').addEventListener('input', render);
+
+  render();
+</script>
+
+<%- include('partials/visto-bottom') %>
+

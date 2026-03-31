@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>EVP Gateway Demo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+      .container {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+      h2 {
+        margin-top: 32px;
+        margin-bottom: 12px;
+        font-size: 20px;
+      }
+      .card {
+        background: #020617;
+        border-radius: 12px;
+        padding: 16px 18px;
+        border: 1px solid #1f2937;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.7);
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 4px;
+      }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 8px;
+        border: 1px solid #374151;
+        background: #020617;
+        color: #e5e7eb;
+        box-sizing: border-box;
+      }
+      input:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px 16px;
+      }
+      button {
+        margin-top: 12px;
+        padding: 9px 16px;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, #4f46e5, #22c55e);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: progress;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #111827;
+        padding: 6px 8px;
+        text-align: left;
+        white-space: nowrap;
+      }
+      th {
+        font-weight: 600;
+        color: #9ca3af;
+        background: #020617;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      tbody tr:nth-child(odd) {
+        background: #020617;
+      }
+      tbody tr:nth-child(even) {
+        background: #030712;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #1f2937;
+        color: #bbf7d0;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 18px 0 10px;
+      }
+      .btn-secondary {
+        padding: 7px 12px;
+        border-radius: 999px;
+        border: 1px solid #334155;
+        background: #0b1224;
+        color: #e5e7eb;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .btn-secondary:hover {
+        border-color: #475569;
+      }
+      .status-wrap {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 140px;
+      }
+      .progress {
+        height: 8px;
+        border-radius: 999px;
+        background: #0b1224;
+        border: 1px solid #111827;
+        overflow: hidden;
+      }
+      .progress > div {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #4f46e5, #22c55e);
+      }
+      .status-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11px;
+        color: #9ca3af;
+      }
+      .status-line strong {
+        color: #e5e7eb;
+        font-weight: 700;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      pre {
+        background: #020617;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        max-height: 260px;
+        overflow: auto;
+        border: 1px solid #111827;
+      }
+      .two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 768px) {
+        .two-col {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>EVP Gateway Demo (Node.js)</h1>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:20px;">
+        สร้าง Payment ผ่าน EVP, เก็บลง <code>Tbl_EVPPayment</code> และรับ Webhook ลง <code>Tbl_EVPHookLogs</code>.
+      </p>
+      <p style="color:#9ca3af;font-size:13px;margin:-10px 0 18px;">
+        Merchant Config: <a href="/admin/merchant" style="color:#a5b4fc;text-decoration:none;">ตั้งค่า Tbl_EVPMerchant</a>
+        <% if (!merchant) { %>
+          <span style="color:#fca5a5;">(ยังไม่มี Active Merchant ใน DB)</span>
+        <% } %>
+      </p>
+      <p style="color:#9ca3af;font-size:13px;margin:-8px 0 18px;">
+        Webhook Simulator: <a href="/simulate/webhook" style="color:#a5b4fc;text-decoration:none;">จำลอง webhook</a>
+      </p>
+
+      <div class="two-col">
+        <div>
+          <h2>สร้าง Payment</h2>
+          <div class="card">
+            <form id="createForm">
+              <div class="grid">
+                <div>
+                  <label>Amount</label>
+                  <input name="amount" type="number" value="300" required />
+                </div>
+                <div>
+                  <label>Currency Code</label>
+                  <input name="currCode" type="number" value="764" required />
+                  <div style="color:#64748b;font-size:12px;margin-top:4px;">แนะนำ THB = 764</div>
+                </div>
+                <div>
+                  <label>Order ID</label>
+                  <input name="orderId" value="ORD-TEST-001" required />
+                </div>
+                <div>
+                  <label>Customer ID</label>
+                  <input name="customerId" value="CUST-003" required />
+                </div>
+                <div>
+                  <label>Transaction Ref</label>
+                  <input name="transactionRef" value="TXN-TEST-003" required />
+                  <div style="color:#64748b;font-size:12px;margin-top:4px;">(ใช้เป็น Ref TRN ด้วย)</div>
+                </div>
+              </div>
+              <button type="submit">สร้าง Payment</button>
+            </form>
+            <div style="margin-top:10px;">
+              <label>ผลลัพธ์ล่าสุด</label>
+              <pre id="createResult">ยังไม่มี</pre>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2>ตรวจสอบสถานะ Payment</h2>
+          <div class="card">
+            <form id="statusForm">
+              <label>EVP Payment ID</label>
+              <input name="evpPaymentId" id="statusEvpId" required />
+              <button type="submit">ดึงสถานะ</button>
+            </form>
+            <div style="margin-top:10px;">
+              <label>ผลลัพธ์ล่าสุด</label>
+              <pre id="statusResult">ยังไม่มี</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2>รายการล่าสุด (จาก SQL Server)</h2>
+      <div class="toolbar">
+        <div style="color:#9ca3af;font-size:13px;">
+          แสดง TOP 50 ล่าสุดจาก <code>Tbl_EVPPayment</code>
+        </div>
+        <button class="btn-secondary" type="button" id="refreshBtn">Refresh</button>
+      </div>
+      <div class="card scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th>Log_ID</th>
+              <th>Terminal_ID</th>
+              <th>Partner_ID</th>
+              <th>Merchant_ID</th>
+              <th>Ref_TRN</th>
+              <th>Res_Payment_ID</th>
+              <th>Res_Status</th>
+              <th>Amount</th>
+              <th>Order</th>
+              <th>Paid At (UTC)</th>
+              <th>Created (UTC)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (logs && logs.length) { %>
+              <% logs.forEach(function (row) { %>
+                <%
+                  const rawStatus = (row.Res_Status || '').toString();
+                  const s = rawStatus.toLowerCase();
+                  let pct = null;
+                  if (s === 'created') pct = 0;
+                  else if (s === 'submitted') pct = 50;
+                  else if (s === 'paid' || s === 'completed') pct = 100;
+                  const pctLabel = pct === null ? 'N/A' : String(pct);
+                %>
+                <tr>
+                  <td><%= row.Log_ID %></td>
+                  <td><%= row.Terminal_ID || '' %></td>
+                  <td><%= row.Partner_ID || '' %></td>
+                  <td><%= row.Merchant_ID || '' %></td>
+                  <td><%= row.Ref_TRN || '' %></td>
+                  <td><%= row.Res_Payment_ID || '' %></td>
+                  <td>
+                    <div class="status-wrap">
+                      <div class="status-line">
+                        <strong><%= pctLabel %></strong>
+                        <span class="badge"><%= row.Res_Status || 'N/A' %></span>
+                      </div>
+                      <div class="progress" title="0 = created, 50 = submitted, 100 = PAID">
+                        <div style="width:<%= pct === null ? 0 : pct %>%"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><%= row.Amount %></td>
+                  <td><%= row.Ref_Order_ID || '' %></td>
+                  <td><%= row.Res_Paid_at ? (row.Res_Paid_at.toISOString ? row.Res_Paid_at.toISOString() : row.Res_Paid_at) : '' %></td>
+                  <td><%= row.CreatedAtUtc ? row.CreatedAtUtc.toISOString ? row.CreatedAtUtc.toISOString() : row.CreatedAtUtc : '' %></td>
+                </tr>
+              <% }) %>
+            <% } else { %>
+              <tr>
+                <td colspan="12">ยังไม่มีข้อมูล</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const createForm = document.getElementById('createForm');
+      const createResult = document.getElementById('createResult');
+      const statusForm = document.getElementById('statusForm');
+      const statusResult = document.getElementById('statusResult');
+      const statusEvpId = document.getElementById('statusEvpId');
+
+      createForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(createForm);
+        const payload = Object.fromEntries(formData.entries());
+
+        createForm.querySelector('button').disabled = true;
+        createResult.textContent = 'กำลังส่ง...';
+
+        try {
+          const res = await fetch('/api/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          createResult.textContent = JSON.stringify(json, null, 2);
+          if (json.evp_payment_id) {
+            statusEvpId.value = json.evp_payment_id;
+          }
+        } catch (err) {
+          createResult.textContent = 'Error: ' + err.message;
+        } finally {
+          createForm.querySelector('button').disabled = false;
+        }
+      });
+
+      statusForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const evpPaymentId = statusEvpId.value.trim();
+        if (!evpPaymentId) return;
+
+        statusForm.querySelector('button').disabled = true;
+        statusResult.textContent = 'กำลังดึงข้อมูล...';
+
+        try {
+          const res = await fetch('/api/payments/' + encodeURIComponent(evpPaymentId));
+          const json = await res.json();
+          statusResult.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          statusResult.textContent = 'Error: ' + err.message;
+        } finally {
+          statusForm.querySelector('button').disabled = false;
+        }
+      });
+
+      document.getElementById('refreshBtn').addEventListener('click', () => {
+        window.location.reload();
+      });
+    </script>
+  </body>
+</html>
+

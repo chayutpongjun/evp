@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>EVP Merchant Config</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      .card {
+        background: #020617;
+        border-radius: 12px;
+        padding: 16px 18px;
+        border: 1px solid #1f2937;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.7);
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 10px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 4px;
+      }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 8px;
+        border: 1px solid #374151;
+        background: #020617;
+        color: #e5e7eb;
+        box-sizing: border-box;
+      }
+      input:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 8px;
+        border: 1px solid #374151;
+        background: #020617;
+        color: #e5e7eb;
+        box-sizing: border-box;
+      }
+      select:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px 16px;
+      }
+      button {
+        margin-top: 12px;
+        padding: 9px 16px;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, #4f46e5, #22c55e);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      a {
+        color: #a5b4fc;
+        text-decoration: none;
+      }
+      code {
+        color: #93c5fd;
+      }
+      .hint {
+        color: #9ca3af;
+        font-size: 13px;
+        margin: 10px 0 0;
+      }
+      .dropdown {
+        position: relative;
+      }
+      .dropdown-display {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 8px;
+        border: 1px solid #374151;
+        background: #020617;
+        color: #e5e7eb;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .dropdown-display .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 0 3px rgba(148,163,184,.08);
+      }
+      .dropdown-display .dot.active { background: #22c55e; }
+      .dropdown-display .dot.inactive { background: #64748b; }
+      .dropdown-display .label {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .dropdown-display .chev {
+        font-size: 11px;
+        opacity: .7;
+      }
+      .dropdown-panel {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 6px);
+        background: #020617;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.7);
+        z-index: 20;
+        display: none;
+      }
+      .dropdown-panel.open {
+        display: block;
+      }
+      .dropdown-panel-header {
+        padding: 8px 10px 4px;
+        border-bottom: 1px solid #1f2937;
+      }
+      .dropdown-panel-header input {
+        width: 100%;
+      }
+      .dropdown-list {
+        max-height: 260px;
+        overflow: auto;
+        padding: 4px 4px 6px;
+      }
+      .dropdown-item {
+        width: 100%;
+        text-align: left;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #e5e7eb;
+        cursor: pointer;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font-size: 13px;
+      }
+      .dropdown-item:hover,
+      .dropdown-item:focus {
+        outline: none;
+        background: rgba(79, 70, 229, 0.10);
+        border-color: rgba(79, 70, 229, 0.35);
+      }
+      .dropdown-item .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .dropdown-item .name {
+        font-weight: 650;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* reuse dot style inside dropdown list as well */
+      .dropdown-item .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+        box-shadow: 0 0 0 3px rgba(148,163,184,.08);
+      }
+      .dropdown-item .dot.active { background: #22c55e; }
+      .dropdown-item .dot.inactive { background: #64748b; }
+      .dropdown-item .sub {
+        color: #94a3b8;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    </style>
+  </head>
+  <body>
+    <% var merchantList = Array.isArray(locals.merchantList) ? locals.merchantList : []; %>
+    <div class="container">
+      <div style="margin-bottom:12px;">
+        <a href="/">← Back</a>
+      </div>
+      <h1>ตั้งค่า <code>Tbl_EVPMerchant</code> (Active)</h1>
+      <p class="hint">
+        หลังบันทึกแล้ว API จะดึงค่า EVP จาก DB ทันที (ไม่อ่านจาก <code>.env</code> แล้ว)
+      </p>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="grid" style="align-items:end;">
+          <div style="grid-column: 1 / -1;">
+            <label>เลือก Merchant จาก Database (พิมพ์ค้นหาแล้วเลือก)</label>
+            <div class="dropdown" id="merchantDropdown">
+              <button type="button" class="dropdown-display" id="merchantDisplay">
+                <span class="dot <%= merchant && merchant.IsActive ? 'active' : 'inactive' %>"></span>
+                <span class="label" id="merchantDisplayLabel">
+                  <% if (merchant) { %>
+                    <%= merchant.Merchant_Name %> • T:<%= merchant.Terminal_ID %> • M:<%= merchant.Merchant_ID %> • B:<%= merchant.Branch_ID %>
+                  <% } else { %>
+                    เลือกจากรายการ...
+                  <% } %>
+                </span>
+                <span class="chev">▾</span>
+              </button>
+              <div class="dropdown-panel" id="merchantPanel">
+                <div class="dropdown-panel-header">
+                  <input id="merchantSearch" placeholder="พิมพ์เพื่อค้นหา..." autocomplete="off" />
+                </div>
+                <div class="dropdown-list" id="merchantList">
+                  <% (merchantList || []).forEach(function(m){ 
+                       var key = [m.Terminal_ID, m.Merchant_ID, m.Branch_ID].join('|');
+                       var name = String(m.Merchant_Name || '');
+                       var sub = 'T:' + m.Terminal_ID + ' • M:' + m.Merchant_ID + ' • B:' + m.Branch_ID;
+                       var search = (name + ' ' + sub).toLowerCase();
+                       var dotClass = m.IsActive ? 'active' : 'inactive';
+                  %>
+                    <button type="button" class="dropdown-item" data-key="<%= key %>" data-search="<%= search %>" data-active="<%= m.IsActive ? '1' : '0' %>">
+                      <span class="dot <%= dotClass %>"></span>
+                      <span class="meta">
+                        <span class="name"><%= name %></span>
+                        <span class="sub"><%= sub %></span>
+                      </span>
+                    </button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+            <p class="hint" style="margin-top:8px;">
+              Dropdown แสดงรายการที่มีอยู่ใน <code>Tbl_EVPMerchant</code> (TOP 200) — ถ้าเหลือแค่บรรทัดนี้แปลว่าในตารางยังไม่มีแถว (หรือกด <strong>Save</strong> ครั้งแรกเพื่อสร้างแถว) ค่าในช่องอาจไม่ได้มาจาก DB ถ้าเป็นเครือข่ายเติมอัตโนมัติของเบราว์เซอร์
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <form method="post" action="/admin/merchant">
+          <div class="grid">
+            <div>
+              <label>BASE_URL</label>
+              <input name="baseUrl" value="<%= merchant ? merchant.BASE_URL : '' %>" placeholder="https://api.sandbox.evp-pay.tech" required />
+            </div>
+            <div>
+              <label>Terminal_ID</label>
+              <input name="terminalId" value="<%= merchant ? merchant.Terminal_ID : '' %>" required />
+            </div>
+            <div>
+              <label>Partner_ID</label>
+              <input name="partnerId" value="<%= merchant ? merchant.Partner_ID : '' %>" required />
+            </div>
+            <div>
+              <label>Merchant_ID</label>
+              <input name="merchantId" value="<%= merchant ? merchant.Merchant_ID : '' %>" required />
+            </div>
+            <div>
+              <label>Branch_ID</label>
+              <input name="branchId" value="<%= merchant ? merchant.Branch_ID : '' %>" required />
+            </div>
+            <div>
+              <label>Merchant_Name</label>
+              <input name="merchantName" value="<%= merchant ? merchant.Merchant_Name : '' %>" required />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>ApiKey</label>
+              <input name="apiKey" value="<%= merchant ? merchant.ApiKey : '' %>" required />
+            </div>
+          </div>
+          <button type="submit">Save</button>
+        </form>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var dropdown = document.getElementById('merchantDropdown');
+        var display = document.getElementById('merchantDisplay');
+        var panel = document.getElementById('merchantPanel');
+        var list = document.getElementById('merchantList');
+        var search = document.getElementById('merchantSearch');
+        var displayLabel = document.getElementById('merchantDisplayLabel');
+        if (!dropdown || !display || !panel || !list || !search) return;
+
+        function gotoKey(key) {
+          var parts = String(key || '').split('|');
+          if (parts.length !== 3) return;
+          var terminalId = encodeURIComponent(parts[0]);
+          var merchantId = encodeURIComponent(parts[1]);
+          var branchId = encodeURIComponent(parts[2]);
+          window.location.href =
+            '/admin/merchant?terminalId=' + terminalId + '&merchantId=' + merchantId + '&branchId=' + branchId;
+        }
+
+        function openPanel() { panel.classList.add('open'); }
+        function closePanel() { panel.classList.remove('open'); }
+        function isOpen() { return panel.classList.contains('open'); }
+
+        function filter(q) {
+          var s = String(q || '').trim().toLowerCase();
+          var items = list.querySelectorAll('.dropdown-item');
+          var shown = 0;
+          for (var i = 0; i < items.length; i++) {
+            var hay = (items[i].getAttribute('data-search') || '');
+            var ok = !s || hay.indexOf(s) !== -1;
+            if (ok && shown < 30) {
+              items[i].style.display = '';
+              shown++;
+            } else {
+              items[i].style.display = 'none';
+            }
+          }
+          if (shown > 0) openPanel();
+          else closePanel();
+        }
+
+        display.addEventListener('click', function () {
+          if (isOpen()) {
+            closePanel();
+          } else {
+            openPanel();
+            search.focus();
+            search.select();
+            filter(search.value);
+          }
+        });
+
+        search.addEventListener('input', function () {
+          filter(search.value);
+        });
+        search.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') closePanel();
+        });
+
+        list.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('.dropdown-item') : null;
+          if (!btn) return;
+          var key = btn.getAttribute('data-key');
+          if (key) gotoKey(key);
+        });
+
+        document.addEventListener('click', function (e) {
+          if (dropdown.contains(e.target)) return;
+          closePanel();
+        });
+
+        // Pre-fill the input with current selection (if any)
+        try {
+          var currentKey = "<%= merchant ? [merchant.Terminal_ID, merchant.Merchant_ID, merchant.Branch_ID].join('|') : '' %>";
+          if (currentKey) {
+            var cur = list.querySelector('.dropdown-item[data-key=\"' + currentKey.replace(/\"/g, '') + '\"]');
+            if (cur) {
+              var nameEl = cur.querySelector('.name');
+              var subEl = cur.querySelector('.sub');
+              var name = nameEl ? nameEl.textContent : '';
+              var sub = subEl ? subEl.textContent : '';
+              if (displayLabel) {
+                displayLabel.textContent = (name ? name + ' • ' : '') + sub;
+              }
+            }
+          }
+        } catch {}
+      })();
+    </script>
+  </body>
+</html>
+

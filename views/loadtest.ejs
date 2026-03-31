@@ -1,0 +1,262 @@
+<%- include('partials/visto-top', {
+  title: 'Load test • EVP Gateway',
+  active: 'loadtest',
+  pageTitle: 'Load test (เบราว์เซอร์)',
+  pageSubtitle: 'กดครั้งเดียว — ยิง POST /api/payments แบบขนาน (ไม่ต้อง Locust / Python)',
+  merchant
+}) %>
+
+<div class="card">
+  <div class="hd">
+    <div>
+      <h3>ตั้งค่าการทดสอบ</h3>
+      <span>รันฝั่งเบราว์เซอร์ → โหลดจริงขึ้นกับเครื่องคุณและการเรียก EVP sandbox</span>
+    </div>
+  </div>
+  <div class="bd">
+    <div class="grid">
+      <div>
+        <label>จำนวนคำขอทั้งหมด</label>
+        <input type="number" id="totalReq" value="30" min="1" max="5000" />
+      </div>
+      <div>
+        <label>ขนาน (คำขอพร้อมกัน)</label>
+        <input type="number" id="concurrency" value="5" min="1" max="100" />
+      </div>
+      <div>
+        <label>จำนวนเงิน (satang) สุ่มระหว่าง min–max</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="amtMin" value="100" min="1" style="flex:1" />
+          <span class="muted">–</span>
+          <input type="number" id="amtMax" value="2000" min="1" style="flex:1" />
+        </div>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="doStatus" checked />
+          หลังสร้าง payment สำเร็จ ให้เรียก <code>GET /api/payments/:id</code> ต่อ (เพิ่มโหลด EVP)
+        </label>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="doWebhook" />
+          เรียก <code>POST /api/webhook/evp</code> ต่อ (ต้อง <code>SKIP_WEBHOOK_VERIFY=true</code> หรือไม่ตั้ง public key)
+        </label>
+      </div>
+      <div style="grid-column: 1 / -1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn" type="button" id="startBtn">เริ่มทดสอบ</button>
+        <button class="btn secondary" type="button" id="stopBtn" disabled>หยุด</button>
+        <span class="muted" id="runHint">พร้อม</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="hd">
+    <div>
+      <h3>ผลลัพธ์</h3>
+      <span id="summaryLine" class="muted">ยังไม่รัน</span>
+    </div>
+  </div>
+  <div class="bd">
+    <pre id="out" style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.5;">—</pre>
+  </div>
+</div>
+
+<script>
+(function () {
+  const totalReq = document.getElementById('totalReq');
+  const concurrency = document.getElementById('concurrency');
+  const amtMin = document.getElementById('amtMin');
+  const amtMax = document.getElementById('amtMax');
+  const doStatus = document.getElementById('doStatus');
+  const doWebhook = document.getElementById('doWebhook');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const runHint = document.getElementById('runHint');
+  const out = document.getElementById('out');
+  const summaryLine = document.getElementById('summaryLine');
+
+  let aborted = false;
+
+  function randInt(a, b) {
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  }
+
+  function pct(sorted, p) {
+    if (!sorted.length) return 0;
+    const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
+    return sorted[Math.max(0, idx)];
+  }
+
+  async function postPayment(i) {
+    const t0 = performance.now();
+    const ms = Date.now();
+    const amount = randInt(Number(amtMin.value) || 100, Number(amtMax.value) || 2000);
+    const body = {
+      amount,
+      currCode: 764,
+      orderId: 'ORD-LT-' + ms + '-' + i,
+      customerId: 'C-LT-' + (i % 9000 + 1000),
+      transactionRef: 'TRN-LT-' + ms + '-' + i + '-' + Math.random().toString(36).slice(2, 8)
+    };
+    const r = await fetch('/api/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const text = await r.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    const t1 = performance.now();
+    return {
+      ok: r.ok,
+      status: r.status,
+      ms: t1 - t0,
+      evp_payment_id: json && json.evp_payment_id ? json.evp_payment_id : null,
+      err: r.ok ? null : (json && json.message) || text.slice(0, 200)
+    };
+  }
+
+  async function getStatus(evpId) {
+    const t0 = performance.now();
+    const r = await fetch('/api/payments/' + encodeURIComponent(evpId), { method: 'GET' });
+    await r.text();
+    const t1 = performance.now();
+    return { ok: r.ok, status: r.status, ms: t1 - t0 };
+  }
+
+  async function postWebhook(evpId) {
+    const t0 = performance.now();
+    const body = {
+      type: 'payment.completed',
+      data: {
+        payment_id: evpId,
+        status: 'completed',
+        amount: 10000,
+        currency: '764',
+        reference: { order_id: 'LT', customer_id: 'LT', transaction_ref: 'LT' },
+        paid_at: new Date().toISOString()
+      }
+    };
+    const r = await fetch('/api/webhook/evp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    await r.text();
+    const t1 = performance.now();
+    return { ok: r.ok, status: r.status, ms: t1 - t0 };
+  }
+
+  async function runPool(total, workers, fn) {
+    const results = new Array(total);
+    let next = 0;
+    aborted = false;
+
+    async function worker() {
+      while (!aborted) {
+        const i = next++;
+        if (i >= total) return;
+        results[i] = await fn(i);
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(workers, total) }, () => worker()));
+    return results;
+  }
+
+  startBtn.addEventListener('click', async () => {
+    const total = Math.min(5000, Math.max(1, parseInt(totalReq.value, 10) || 30));
+    const workers = Math.min(100, Math.max(1, parseInt(concurrency.value, 10) || 5));
+    totalReq.value = String(total);
+    concurrency.value = String(workers);
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    runHint.textContent = 'กำลังรัน...';
+    out.textContent = 'เริ่ม ' + new Date().toISOString() + '\n';
+
+    const tStart = performance.now();
+    const paymentResults = await runPool(total, workers, postPayment);
+    const tPayEnd = performance.now();
+
+    let statusMs = [];
+    let webhookMs = [];
+    let statusFail = 0;
+    let webhookFail = 0;
+
+    if (!aborted && doStatus.checked) {
+      runHint.textContent = 'ดึงสถานะ...';
+      const ids = paymentResults.filter((p) => p && p.ok && p.evp_payment_id).map((p) => p.evp_payment_id);
+      for (let j = 0; j < ids.length && !aborted; j++) {
+        const s = await getStatus(ids[j]);
+        statusMs.push(s.ms);
+        if (!s.ok) statusFail++;
+      }
+    }
+
+    if (!aborted && doWebhook.checked) {
+      runHint.textContent = 'ยิง webhook...';
+      const ids = paymentResults.filter((p) => p && p.ok && p.evp_payment_id).map((p) => p.evp_payment_id);
+      for (let j = 0; j < ids.length && !aborted; j++) {
+        const w = await postWebhook(ids[j]);
+        webhookMs.push(w.ms);
+        if (!w.ok) webhookFail++;
+      }
+    }
+
+    const tEnd = performance.now();
+    const durSec = (tEnd - tStart) / 1000;
+
+    const lat = paymentResults.filter(Boolean).map((p) => p.ms).sort((a, b) => a - b);
+    const payOk = paymentResults.filter((p) => p && p.ok).length;
+    const payFail = total - payOk;
+
+    const p50 = pct(lat, 50);
+    const p95 = pct(lat, 95);
+
+    const lines = [];
+    lines.push('--- POST /api/payments ---');
+    lines.push('รวมเวลา (รวม status/webhook ถ้าเปิด): ' + durSec.toFixed(2) + ' s');
+    lines.push('สำเร็จ: ' + payOk + '  ล้มเหลว: ' + payFail + '  (HTTP ไม่ใช่ 200)');
+    if (lat.length) {
+      lines.push('Latency POST (ms) — min: ' + lat[0].toFixed(1) + '  p50: ' + p50.toFixed(1) + '  p95: ' + p95.toFixed(1) + '  max: ' + lat[lat.length - 1].toFixed(1));
+    }
+    lines.push('Throughput POST เฉลี่ย: ' + (payOk / Math.max(0.001, (tPayEnd - tStart) / 1000)).toFixed(2) + ' req/s (สำเร็จเท่านั้น)');
+
+    if (doStatus.checked) {
+      lines.push('--- GET /api/payments/:id ---');
+      lines.push('จำนวนครั้ง: ' + statusMs.length + '  ล้มเหลว: ' + statusFail);
+      if (statusMs.length) {
+        const s = statusMs.sort((a, b) => a - b);
+        lines.push('Latency GET (ms) — p50: ' + pct(s, 50).toFixed(1) + '  p95: ' + pct(s, 95).toFixed(1));
+      }
+    }
+    if (doWebhook.checked) {
+      lines.push('--- POST /api/webhook/evp ---');
+      lines.push('จำนวนครั้ง: ' + webhookMs.length + '  ล้มเหลว: ' + webhookFail + ' (ถ้า 401 ตรวจ SKIP_WEBHOOK_VERIFY / public key)');
+      if (webhookMs.length) {
+        const s = webhookMs.sort((a, b) => a - b);
+        lines.push('Latency webhook (ms) — p50: ' + pct(s, 50).toFixed(1) + '  p95: ' + pct(s, 95).toFixed(1));
+      }
+    }
+
+    summaryLine.textContent = 'เสร็จ — ' + payOk + '/' + total + ' สำเร็จ · ' + durSec.toFixed(1) + ' s';
+    out.textContent = out.textContent + lines.join('\n');
+    runHint.textContent = aborted ? 'หยุดกลางคัน' : 'พร้อม';
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  });
+
+  stopBtn.addEventListener('click', () => {
+    aborted = true;
+    runHint.textContent = 'กำลังหยุด...';
+  });
+})();
+</script>
+
+<%- include('partials/visto-bottom') %>

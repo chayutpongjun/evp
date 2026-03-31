@@ -1,0 +1,1206 @@
+<%- include('partials/visto-top', {
+  title: 'Payment • EVP Gateway',
+  active: 'payment',
+  pageTitle: 'Payment',
+  pageSubtitle: 'Create payment ผ่าน EVP แล้วบันทึกลง Tbl_EVPPayment',
+  merchant
+}) %>
+
+<style>
+  /* ── two-column layout ── */
+  .pay-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .pay-layout { grid-template-columns: 1fr; } }
+
+  /* ── request panel ── */
+  .req-panel {
+    border: 1px solid #111827;
+    border-radius: 14px;
+    background: #060b14;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .req-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 14px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+  }
+  .req-panel-head span {
+    font-size: 12px;
+    font-weight: 700;
+    color: #9ca3af;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+  }
+
+  /* method + url bar */
+  .req-url-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid #111827;
+    background: #0a1020;
+  }
+  .req-method {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: rgba(34,197,94,.14);
+    color: #22c55e;
+    border: 1px solid rgba(34,197,94,.25);
+    margin-right: 10px;
+    flex-shrink: 0;
+    letter-spacing: .5px;
+  }
+  .req-url {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: #60a5fa;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  /* tabs */
+  .req-tabs {
+    display: flex;
+    border-bottom: 1px solid #111827;
+    padding: 0 14px;
+    background: #080e1a;
+    gap: 2px;
+  }
+  .req-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+    user-select: none;
+  }
+  .req-tab.active { color: #e5e7eb; border-color: #00e676; }
+  .req-tab:hover:not(.active) { color: #9ca3af; }
+
+  /* tab bodies */
+  .req-body { display: none; padding: 12px 14px; }
+  .req-body.active { display: block; }
+
+  /* headers table */
+  .req-headers { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .req-headers td { padding: 5px 8px; border-bottom: 1px solid #0d1117; vertical-align: top; }
+  .req-headers td:first-child { color: #9ca3af; white-space: nowrap; font-weight: 600; width: 38%; }
+  .req-headers td:last-child { color: #e5e7eb; font-family: monospace; word-break: break-all; }
+
+  /* json block */
+  .req-json {
+    background: #020609;
+    border: 1px solid #0d1117;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    overflow-x: auto;
+    white-space: pre;
+    color: #d1d5db;
+  }
+  .json-key    { color: #93c5fd; }
+  .json-str    { color: #86efac; }
+  .json-num    { color: #fde68a; }
+  .json-null   { color: #f87171; }
+
+  /* curl block */
+  .req-curl {
+    background: #020609;
+    border: 1px solid #0d1117;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #d1d5db;
+  }
+  .curl-cmd   { color: #f9a8d4; font-weight: 700; }
+  .curl-flag  { color: #93c5fd; }
+  .curl-url   { color: #60a5fa; }
+  .curl-str   { color: #86efac; }
+
+  /* copy btn */
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    border: 1px solid #1f2937;
+    background: #0d1117;
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .copy-btn:hover { border-color: #374151; color: #e5e7eb; }
+  .copy-btn.copied { color: #00e676; border-color: rgba(0,230,118,.35); }
+
+  /* curl tab selector */
+  .curl-subtabs {
+    display: flex; gap: 6px; margin-bottom: 10px;
+  }
+  .curl-subtab {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    background: transparent;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .curl-subtab.active { background: #111827; border-color: #374151; color: #e5e7eb; }
+
+  /* response panel */
+  .res-panel {
+    border: 1px solid #111827;
+    border-radius: 14px;
+    background: #060b14;
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .res-panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+  }
+  .res-status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 6px;
+    font-size: 11px; font-weight: 700;
+  }
+  .res-status-badge.ok  { background: rgba(0,230,118,.12); color: #00e676; border: 1px solid rgba(0,230,118,.25); }
+  .res-status-badge.err { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.25); }
+  .res-status-badge.idle{ background: rgba(107,114,128,.1); color: #6b7280; border: 1px solid #1f2937; }
+</style>
+
+<div class="pay-layout">
+
+  <!-- ── Left: Form ── -->
+  <div>
+    <div class="card">
+      <div class="hd">
+        <div>
+          <h3>สร้าง Payment</h3>
+          <span>ส่งไปที่ <code>/api/payments</code> และเก็บผลลง SQL Server</span>
+        </div>
+      </div>
+      <div class="bd">
+        <form id="createForm">
+          <div class="grid">
+            <div>
+              <label>Amount</label>
+              <input name="amount" id="f_amount" type="number" value="300" required />
+            </div>
+            <div>
+              <label>Currency Code</label>
+              <input name="currCode" id="f_currCode" type="number" value="764" required />
+              <div class="muted" style="font-size:12px;margin-top:6px;">THB = 764</div>
+            </div>
+            <div>
+              <label>Order ID</label>
+              <input name="orderId" id="f_orderId" value="ORD-TEST-001" required />
+            </div>
+            <div>
+              <label>Customer ID</label>
+              <input name="customerId" id="f_customerId" value="CUST-003" required />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>Transaction Ref (Ref TRN)</label>
+              <input name="transactionRef" id="f_transactionRef" value="TXN-TEST-003" required />
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn" type="submit" id="createBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              ส่ง Payment
+            </button>
+            <a class="btn secondary" href="/evp-payment-report">ดูรายงาน</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Response panel -->
+    <div class="res-panel">
+      <div class="res-panel-head">
+        <span style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;">Response</span>
+        <span id="resStatusBadge" class="res-status-badge idle">—</span>
+      </div>
+      <div style="padding:12px 14px;">
+        <pre id="createResult" style="margin:0;font-family:monospace;font-size:12px;line-height:1.6;color:#9ca3af;max-height:260px;overflow:auto;background:#020609;border:1px solid #0d1117;border-radius:8px;padding:12px;">ยังไม่มี</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Request Inspector ── -->
+  <div class="req-panel" id="reqPanel">
+
+    <!-- header -->
+    <div class="req-panel-head">
+      <span>Request Inspector</span>
+      <div style="display:flex;gap:6px;">
+        <% if (merchant) { %>
+          <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(0,230,118,.1);color:#00e676;border:1px solid rgba(0,230,118,.2);font-weight:700;">
+            <%= merchant.Terminal_ID %>
+          </span>
+        <% } else { %>
+          <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-weight:700;">No Active Merchant</span>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- method + URL bar -->
+    <div class="req-url-bar">
+      <span class="req-method">POST</span>
+      <span class="req-url" id="reqUrlDisplay">/api/payments</span>
+    </div>
+
+    <!-- tabs -->
+    <div class="req-tabs">
+      <div class="req-tab active" data-tab="headers">Headers</div>
+      <div class="req-tab" data-tab="body">Body</div>
+      <div class="req-tab" data-tab="curl">cURL</div>
+    </div>
+
+    <!-- Headers tab -->
+    <div class="req-body active" id="tab-headers">
+      <table class="req-headers">
+        <tr><td>Content-Type</td><td>application/json</td></tr>
+        <% if (merchant) { %>
+          <tr><td>x-api-key</td><td id="hdr-apikey" style="color:#fde68a;"><%= merchant.ApiKey %></td></tr>
+          <tr><td>Host</td><td id="hdr-host"><%= (merchant.BASE_URL || '').replace(/^https?:\/\//, '').split('/')[0] %></td></tr>
+        <% } else { %>
+          <tr><td>x-api-key</td><td style="color:#4b5563;">(no active merchant)</td></tr>
+        <% } %>
+      </table>
+    </div>
+
+    <!-- Body tab -->
+    <div class="req-body" id="tab-body">
+      <div class="req-json" id="bodyPreview"></div>
+    </div>
+
+    <!-- cURL tab -->
+    <div class="req-body" id="tab-curl">
+      <div class="curl-subtabs">
+        <button class="curl-subtab active" data-curl="proxy">Proxy (local)</button>
+        <% if (merchant) { %>
+          <button class="curl-subtab" data-curl="direct">Direct EVP</button>
+        <% } %>
+      </div>
+      <div id="curlProxy" class="req-curl"></div>
+      <% if (merchant) { %>
+        <div id="curlDirect" class="req-curl" style="display:none;"></div>
+      <% } %>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="copy-btn" id="btnCopyCurl">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy cURL
+        </button>
+        <button class="copy-btn" id="btnCopyJson">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy JSON
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /req-panel -->
+</div><!-- /pay-layout -->
+
+<script>
+(function () {
+  /* ── merchant data from server ── */
+  var MERCHANT = {
+    <% if (merchant) { %>
+      baseUrl:    '<%- (merchant.BASE_URL || '').replace(/\/$/, '') %>',
+      terminalId: '<%- merchant.Terminal_ID %>',
+      partnerId:  '<%- merchant.Partner_ID %>',
+      apiKey:     '<%- merchant.ApiKey %>'
+    <% } else { %>
+      baseUrl: '', terminalId: '', partnerId: '', apiKey: ''
+    <% } %>
+  };
+
+  /* ── DOM refs ── */
+  var f_amount   = document.getElementById('f_amount');
+  var f_curr     = document.getElementById('f_currCode');
+  var f_order    = document.getElementById('f_orderId');
+  var f_customer = document.getElementById('f_customerId');
+  var f_txnref   = document.getElementById('f_transactionRef');
+
+  var bodyPreview    = document.getElementById('bodyPreview');
+  var curlProxyEl    = document.getElementById('curlProxy');
+  var curlDirectEl   = document.getElementById('curlDirect');
+  var reqUrlDisplay  = document.getElementById('reqUrlDisplay');
+  var resStatusBadge = document.getElementById('resStatusBadge');
+  var createResult   = document.getElementById('createResult');
+
+  /* ── helpers ── */
+  function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function colorJson(obj) {
+    var s = JSON.stringify(obj, null, 2);
+    return s.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (m) {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return '<span class="json-key">' + esc(m) + '</span>';
+        return '<span class="json-str">' + esc(m) + '</span>';
+      }
+      if (/true|false|null/.test(m)) return '<span class="json-null">' + m + '</span>';
+      return '<span class="json-num">' + m + '</span>';
+    });
+  }
+
+  function buildPayload() {
+    return {
+      partner_id: MERCHANT.partnerId || '(partner_id)',
+      transaction_type: 'SALE',
+      amount: Number(f_amount.value) || 0,
+      curr_code: Number(f_curr.value) || 764,
+      reference: {
+        order_id:        f_order.value    || '',
+        customer_id:     f_customer.value || '',
+        transaction_ref: f_txnref.value   || ''
+      }
+    };
+  }
+
+  function buildProxyPayload() {
+    return {
+      amount:         f_amount.value   || '',
+      currCode:       f_curr.value     || '',
+      orderId:        f_order.value    || '',
+      customerId:     f_customer.value || '',
+      transactionRef: f_txnref.value   || ''
+    };
+  }
+
+  var activeCurlMode = 'proxy';
+
+  function buildCurlProxy() {
+    var p = buildProxyPayload();
+    var origin = window.location.origin;
+    var body = JSON.stringify(p, null, 2);
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(origin + '/api/payments') + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
+      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
+  }
+
+  function buildCurlDirect() {
+    if (!MERCHANT.baseUrl) return '<span style="color:#4b5563;">No active merchant configured.</span>';
+    var url = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
+    var p = buildPayload();
+    var body = JSON.stringify(p, null, 2);
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(url) + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"x-api-key: ' + esc(MERCHANT.apiKey) + '"</span> \\\n'
+      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
+  }
+
+  function update() {
+    /* body tab */
+    var evpPayload = buildPayload();
+    if (bodyPreview) bodyPreview.innerHTML = colorJson(evpPayload);
+
+    /* url bar */
+    if (reqUrlDisplay) {
+      if (activeCurlMode === 'direct' && MERCHANT.baseUrl) {
+        reqUrlDisplay.textContent = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
+      } else {
+        reqUrlDisplay.textContent = '/api/payments';
+      }
+    }
+
+    /* curl tabs */
+    if (curlProxyEl)  curlProxyEl.innerHTML  = buildCurlProxy();
+    if (curlDirectEl) curlDirectEl.innerHTML = buildCurlDirect();
+  }
+
+  /* live update on input */
+  [f_amount, f_curr, f_order, f_customer, f_txnref].forEach(function (el) {
+    if (el) el.addEventListener('input', update);
+  });
+
+  /* tab switching */
+  document.querySelectorAll('.req-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.req-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.req-body').forEach(function (b) { b.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+      if (target) target.classList.add('active');
+    });
+  });
+
+  /* curl subtabs */
+  document.querySelectorAll('.curl-subtab').forEach(function (st) {
+    st.addEventListener('click', function () {
+      document.querySelectorAll('.curl-subtab').forEach(function (t) { t.classList.remove('active'); });
+      st.classList.add('active');
+      activeCurlMode = st.getAttribute('data-curl');
+      if (curlProxyEl)  curlProxyEl.style.display  = activeCurlMode === 'proxy'  ? '' : 'none';
+      if (curlDirectEl) curlDirectEl.style.display = activeCurlMode === 'direct' ? '' : 'none';
+      update();
+    });
+  });
+
+  /* copy cURL */
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(function () {
+      btn.classList.add('copied');
+      var orig = btn.innerHTML;
+      btn.innerHTML = btn.innerHTML.replace(/Copy.*/i, 'Copied!');
+      setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
+    });
+  }
+
+  var btnCopyCurl = document.getElementById('btnCopyCurl');
+  var btnCopyJson = document.getElementById('btnCopyJson');
+
+  if (btnCopyCurl) {
+    btnCopyCurl.addEventListener('click', function () {
+      var raw;
+      if (activeCurlMode === 'direct' && MERCHANT.baseUrl) {
+        var url = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
+        var p = buildPayload();
+        raw = 'curl -X POST ' + url + ' \\\n'
+          + '  -H "Content-Type: application/json" \\\n'
+          + '  -H "x-api-key: ' + MERCHANT.apiKey + '" \\\n'
+          + '  -d \'' + JSON.stringify(p, null, 2) + '\'';
+      } else {
+        var pp = buildProxyPayload();
+        raw = 'curl -X POST ' + window.location.origin + '/api/payments \\\n'
+          + '  -H "Content-Type: application/json" \\\n'
+          + '  -d \'' + JSON.stringify(pp, null, 2) + '\'';
+      }
+      copyText(raw, btnCopyCurl);
+    });
+  }
+
+  if (btnCopyJson) {
+    btnCopyJson.addEventListener('click', function () {
+      var p = activeCurlMode === 'direct' ? buildPayload() : buildProxyPayload();
+      copyText(JSON.stringify(p, null, 2), btnCopyJson);
+    });
+  }
+
+  /* ── Form submit ── */
+  var createForm = document.getElementById('createForm');
+  var createBtn  = document.getElementById('createBtn');
+
+  createForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var payload = buildProxyPayload();
+
+    createBtn.disabled = true;
+    createBtn.textContent = 'กำลังส่ง…';
+    resStatusBadge.className = 'res-status-badge idle';
+    resStatusBadge.textContent = 'Loading…';
+    createResult.textContent = '…';
+
+    try {
+      var res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var json = await res.json().catch(async function () { return { raw: await res.text() }; });
+      createResult.textContent = JSON.stringify(json, null, 2);
+
+      resStatusBadge.className = 'res-status-badge ' + (res.ok ? 'ok' : 'err');
+      resStatusBadge.textContent = res.status + ' ' + (res.ok ? 'OK' : 'Error');
+
+      if (json.evp_payment_id) { window.__lastPaymentId = json.evp_payment_id; }
+    } catch (err) {
+      createResult.textContent = 'Error: ' + err.message;
+      resStatusBadge.className = 'res-status-badge err';
+      resStatusBadge.textContent = 'Network Error';
+    } finally {
+      createBtn.disabled = false;
+      createBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> ส่ง Payment';
+    }
+  });
+
+  /* initial render */
+  update();
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     CODE EXAMPLES PANEL
+══════════════════════════════════════════ -->
+<style>
+  .code-panel {
+    margin-top: 16px;
+    border: 1px solid #111827;
+    border-radius: 14px;
+    background: #060b14;
+    overflow: hidden;
+  }
+  .code-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+  }
+  .code-panel-head h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #e5e7eb;
+  }
+  .code-panel-head p { margin: 0; font-size: 11px; color: #4b5563; }
+
+  /* language tabs */
+  .lang-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .lang-tabs::-webkit-scrollbar { display: none; }
+  .lang-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color .15s, border-color .15s;
+    user-select: none;
+  }
+  .lang-tab:hover:not(.active) { color: #9ca3af; }
+  .lang-tab.active { color: #e5e7eb; border-color: #00e676; }
+  .lang-tab .lang-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* code blocks */
+  .lang-body { display: none; }
+  .lang-body.active { display: block; }
+
+  .code-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px 6px;
+  }
+  .code-toolbar span {
+    font-size: 11px;
+    color: #374151;
+    font-family: monospace;
+  }
+  .code-copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px;
+    border-radius: 7px;
+    border: 1px solid #1f2937;
+    background: transparent;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .code-copy-btn:hover { border-color: #374151; color: #e5e7eb; }
+  .code-copy-btn.copied { color: #00e676; border-color: rgba(0,230,118,.35); }
+
+  .code-block {
+    margin: 0 16px 16px;
+    background: #020609;
+    border: 1px solid #0d1117;
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    overflow-x: auto;
+    white-space: pre;
+    color: #d1d5db;
+    max-height: 460px;
+    overflow-y: auto;
+  }
+
+  /* token colors */
+  .t-kw   { color: #c084fc; }   /* keyword */
+  .t-fn   { color: #60a5fa; }   /* function / method */
+  .t-str  { color: #86efac; }   /* string */
+  .t-num  { color: #fde68a; }   /* number */
+  .t-cmt  { color: #374151; font-style: italic; } /* comment */
+  .t-type { color: #f9a8d4; }   /* type / class */
+  .t-var  { color: #e5e7eb; }   /* var name */
+  .t-op   { color: #94a3b8; }   /* operator */
+  .t-prop { color: #93c5fd; }   /* property */
+  .t-anno { color: #fbbf24; }   /* annotation / decorator */
+</style>
+
+<%
+  var BASE_URL   = merchant ? (merchant.BASE_URL || '').replace(/\/$/, '') : 'https://api.sandbox.evp-pay.tech';
+  var TERMINAL   = merchant ? merchant.Terminal_ID : 'TID001';
+  var PARTNER    = merchant ? merchant.Partner_ID  : 'PARTNER_ID';
+  var API_KEY    = merchant ? merchant.ApiKey      : 'YOUR_API_KEY';
+  var EVP_URL    = BASE_URL + '/v1/terminals/' + TERMINAL + '/payments';
+%>
+
+<div class="code-panel">
+  <div class="code-panel-head">
+    <div>
+      <h4>Code Examples</h4>
+      <p>ตัวอย่างโค้ดสำหรับเรียก EVP Payment API — อัปเดตอัตโนมัติตามค่าฟอร์ม</p>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(148,163,184,.08);color:#6b7280;border:1px solid #1f2937;">
+        Direct EVP: <span style="color:#60a5fa;font-family:monospace;"><%= EVP_URL %></span>
+      </span>
+    </div>
+  </div>
+
+  <div class="lang-tabs">
+    <div class="lang-tab active" data-lang="nodejs">
+      <span class="lang-dot" style="background:#68a063;"></span>Node.js
+    </div>
+    <div class="lang-tab" data-lang="js">
+      <span class="lang-dot" style="background:#f7df1e;"></span>JavaScript
+    </div>
+    <div class="lang-tab" data-lang="python">
+      <span class="lang-dot" style="background:#3776ab;"></span>Python
+    </div>
+    <div class="lang-tab" data-lang="csharp">
+      <span class="lang-dot" style="background:#512bd4;"></span>C#
+    </div>
+    <div class="lang-tab" data-lang="cpp">
+      <span class="lang-dot" style="background:#00599c;"></span>C++
+    </div>
+    <div class="lang-tab" data-lang="php">
+      <span class="lang-dot" style="background:#8892be;"></span>PHP
+    </div>
+    <div class="lang-tab" data-lang="html">
+      <span class="lang-dot" style="background:#e34c26;"></span>HTML
+    </div>
+  </div>
+
+  <!-- Node.js -->
+  <div class="lang-body active" id="lang-nodejs">
+    <div class="code-toolbar">
+      <span>axios / node-fetch · Direct EVP</span>
+      <button class="code-copy-btn" data-target="code-nodejs">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-nodejs"></div>
+  </div>
+
+  <!-- JavaScript (browser fetch) -->
+  <div class="lang-body" id="lang-js">
+    <div class="code-toolbar">
+      <span>fetch API · browser / Deno / Bun</span>
+      <button class="code-copy-btn" data-target="code-js">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-js"></div>
+  </div>
+
+  <!-- Python -->
+  <div class="lang-body" id="lang-python">
+    <div class="code-toolbar">
+      <span>requests library</span>
+      <button class="code-copy-btn" data-target="code-python">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-python"></div>
+  </div>
+
+  <!-- C# -->
+  <div class="lang-body" id="lang-csharp">
+    <div class="code-toolbar">
+      <span>HttpClient · .NET 6+</span>
+      <button class="code-copy-btn" data-target="code-csharp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-csharp"></div>
+  </div>
+
+  <!-- C++ -->
+  <div class="lang-body" id="lang-cpp">
+    <div class="code-toolbar">
+      <span>libcurl · C++17</span>
+      <button class="code-copy-btn" data-target="code-cpp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-cpp"></div>
+  </div>
+
+  <!-- PHP -->
+  <div class="lang-body" id="lang-php">
+    <div class="code-toolbar">
+      <span>cURL extension · PHP 8+</span>
+      <button class="code-copy-btn" data-target="code-php">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-php"></div>
+  </div>
+
+  <!-- HTML -->
+  <div class="lang-body" id="lang-html">
+    <div class="code-toolbar">
+      <span>Vanilla HTML + fetch · standalone page</span>
+      <button class="code-copy-btn" data-target="code-html">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-html"></div>
+  </div>
+
+</div><!-- /code-panel -->
+
+<script>
+(function () {
+  /* ── server-injected merchant values ── */
+  var M = {
+    baseUrl:    '<%- BASE_URL %>',
+    terminal:   '<%- TERMINAL %>',
+    partner:    '<%- PARTNER %>',
+    apiKey:     '<%- API_KEY %>',
+    evpUrl:     '<%- EVP_URL %>'
+  };
+
+  /* read live form values */
+  function vals() {
+    return {
+      amount:    document.getElementById('f_amount')        ? document.getElementById('f_amount').value        : '300',
+      currCode:  document.getElementById('f_currCode')      ? document.getElementById('f_currCode').value      : '764',
+      orderId:   document.getElementById('f_orderId')       ? document.getElementById('f_orderId').value       : 'ORD-001',
+      customerId:document.getElementById('f_customerId')    ? document.getElementById('f_customerId').value    : 'CUST-001',
+      txnRef:    document.getElementById('f_transactionRef')? document.getElementById('f_transactionRef').value: 'TXN-001'
+    };
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── code generators ── */
+  function genNodejs(v) {
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
+      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
+      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
+      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '  <span class="t-prop">reference</span>: {',
+      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '  }',
+      '};',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">createPayment</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">post</span>(',
+      '    <span class="t-str">\'' + esc(M.evpUrl) + '\'</span>,',
+      '    <span class="t-var">payload</span>,',
+      '    { <span class="t-prop">headers</span>: {',
+      '        <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
+      '        <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '      }',
+      '    }',
+      '  );',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">createPayment</span>();'
+    ].join('\n');
+  }
+
+  function genJs(v) {
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
+      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
+      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
+      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '  <span class="t-prop">reference</span>: {',
+      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '  }',
+      '};',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>, {',
+      '  <span class="t-prop">method</span>:  <span class="t-str">\'POST\'</span>,',
+      '  <span class="t-prop">headers</span>: {',
+      '    <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
+      '    <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '  },',
+      '  <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">payload</span>)',
+      '});',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genPython(v) {
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">json</span>',
+      '',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(M.evpUrl) + '"</span>',
+      '',
+      '<span class="t-var">headers</span> = {',
+      '    <span class="t-str">"Content-Type"</span>: <span class="t-str">"application/json"</span>,',
+      '    <span class="t-str">"x-api-key"</span>:     <span class="t-str">"' + esc(M.apiKey) + '"</span>',
+      '}',
+      '',
+      '<span class="t-var">payload</span> = {',
+      '    <span class="t-str">"partner_id"</span>:        <span class="t-str">"' + esc(M.partner) + '"</span>,',
+      '    <span class="t-str">"transaction_type"</span>: <span class="t-str">"SALE"</span>,',
+      '    <span class="t-str">"amount"</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
+      '    <span class="t-str">"curr_code"</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '    <span class="t-str">"reference"</span>: {',
+      '        <span class="t-str">"order_id"</span>:        <span class="t-str">"' + esc(v.orderId) + '"</span>,',
+      '        <span class="t-str">"customer_id"</span>:     <span class="t-str">"' + esc(v.customerId) + '"</span>,',
+      '        <span class="t-str">"transaction_ref"</span>: <span class="t-str">"' + esc(v.txnRef) + '"</span>',
+      '    }',
+      '}',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">post</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>=<span class="t-var">headers</span>, <span class="t-prop">json</span>=<span class="t-var">payload</span>)',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genCsharp(v) {
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>.<span class="t-type">Json</span>;',
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Text</span>.<span class="t-type">Json</span>.<span class="t-type">Serialization</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-api-key"</span>, <span class="t-str">"' + esc(M.apiKey) + '"</span>);',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">payload</span> = <span class="t-kw">new</span> {',
+      '    partner_id        = <span class="t-str">"' + esc(M.partner) + '"</span>,',
+      '    transaction_type  = <span class="t-str">"SALE"</span>,',
+      '    amount            = <span class="t-num">' + esc(v.amount) + '</span>,',
+      '    curr_code         = <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '    reference = <span class="t-kw">new</span> {',
+      '        order_id        = <span class="t-str">"' + esc(v.orderId) + '"</span>,',
+      '        customer_id     = <span class="t-str">"' + esc(v.customerId) + '"</span>,',
+      '        transaction_ref = <span class="t-str">"' + esc(v.txnRef) + '"</span>',
+      '    }',
+      '};',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">PostAsJsonAsync</span>(',
+      '    <span class="t-str">"' + esc(M.evpUrl) + '"</span>,',
+      '    <span class="t-var">payload</span>',
+      ');',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCpp(v) {
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o payment payment.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">contents</span>, <span class="t-type">size_t</span> <span class="t-var">size</span>,',
+      '                          <span class="t-type">size_t</span> <span class="t-var">nmemb</span>, <span class="t-type">std::string</span>* <span class="t-var">s</span>) {',
+      '    <span class="t-var">s</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">contents</span>, <span class="t-var">size</span> * <span class="t-var">nmemb</span>);',
+      '    <span class="t-kw">return</span> <span class="t-var">size</span> * <span class="t-var">nmemb</span>;',
+      '}',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">body</span> = <span class="t-type">std::string</span>(<span class="t-str">"{</span>\\n<span class="t-str">"</span>)',
+      '      + <span class="t-str">"  \\"partner_id\\": \\"'        + esc(M.partner)    + '\\"," </span>\\n',
+      '      + <span class="t-str">"  \\"transaction_type\\": \\"SALE\\"," </span>\\n',
+      '      + <span class="t-str">"  \\"amount\\": '              + esc(v.amount)     + ',"</span>\\n',
+      '      + <span class="t-str">"  \\"curr_code\\": '           + esc(v.currCode)   + ',"</span>\\n',
+      '      + <span class="t-str">"  \\"reference\\": {"</span>\\n',
+      '      + <span class="t-str">"    \\"order_id\\": \\"'       + esc(v.orderId)    + '\\"," </span>\\n',
+      '      + <span class="t-str">"    \\"customer_id\\": \\"'    + esc(v.customerId) + '\\"," </span>\\n',
+      '      + <span class="t-str">"    \\"transaction_ref\\": \\"'+ esc(v.txnRef)     + '\\"" </span>\\n',
+      '      + <span class="t-str">"  }}"</span>;',
+      '',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"Content-Type: application/json"</span>);',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-api-key: ' + esc(M.apiKey) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>,        <span class="t-str">"' + esc(M.evpUrl) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>,  <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_POSTFIELDS</span>,  <span class="t-var">body</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>,    &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genPhp(v) {
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$payload</span> = [',
+      '    <span class="t-str">\'partner_id\'</span>        => <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '    <span class="t-str">\'transaction_type\'</span> => <span class="t-str">\'SALE\'</span>,',
+      '    <span class="t-str">\'amount\'</span>            => <span class="t-num">' + esc(v.amount) + '</span>,',
+      '    <span class="t-str">\'curr_code\'</span>         => <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '    <span class="t-str">\'reference\'</span>         => [',
+      '        <span class="t-str">\'order_id\'</span>        => <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '        <span class="t-str">\'customer_id\'</span>     => <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '        <span class="t-str">\'transaction_ref\'</span> => <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '    ]',
+      '];',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_POST</span>           => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_POSTFIELDS</span>     => <span class="t-fn">json_encode</span>(<span class="t-var">$payload</span>),',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [',
+      '        <span class="t-str">\'Content-Type: application/json\'</span>,',
+      '        <span class="t-str">\'x-api-key: ' + esc(M.apiKey) + '\'</span>',
+      '    ]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">var_dump</span>(<span class="t-fn">json_decode</span>(<span class="t-var">$response</span>, <span class="t-kw">true</span>));'
+    ].join('\n');
+  }
+
+  function genHtml(v) {
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span> <span class="t-prop">lang</span>=<span class="t-str">"en"</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;</span>',
+      '  <span class="t-op">&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;</span>',
+      '  <span class="t-op">&lt;</span><span class="t-kw">title</span><span class="t-op">&gt;</span>EVP Payment<span class="t-op">&lt;/</span><span class="t-kw">title</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"createPayment()"</span><span class="t-op">&gt;</span>Pay<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"result"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">createPayment</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">payload</span> = {',
+      '    <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '    <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
+      '    <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
+      '    <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '    <span class="t-prop">reference</span>: {',
+      '      <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '      <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '      <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '    }',
+      '  };',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>, {',
+      '    <span class="t-prop">method</span>:  <span class="t-str">\'POST\'</span>,',
+      '    <span class="t-prop">headers</span>: {',
+      '      <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
+      '      <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '    },',
+      '    <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">payload</span>)',
+      '  });',
+      '  <span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'result\'</span>).<span class="t-prop">textContent</span>',
+      '    = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">data</span>, <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  /* plain-text version for copying */
+  function rawPayload(v) {
+    return {
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount)   || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    };
+  }
+
+  function rawNodejs(v) {
+    var p = JSON.stringify(rawPayload(v), null, 2);
+    return "const axios = require('axios');\n\nconst payload = " + p + ";\n\n"
+      + "async function createPayment() {\n"
+      + "  const { data } = await axios.post(\n"
+      + "    '" + M.evpUrl + "',\n"
+      + "    payload,\n"
+      + "    { headers: { 'Content-Type': 'application/json', 'x-api-key': '" + M.apiKey + "' } }\n"
+      + "  );\n  console.log(data);\n}\n\ncreatePayment();";
+  }
+  function rawJs(v) {
+    var p = JSON.stringify(rawPayload(v), null, 2);
+    return "const payload = " + p + ";\n\n"
+      + "const res = await fetch('" + M.evpUrl + "', {\n"
+      + "  method: 'POST',\n"
+      + "  headers: { 'Content-Type': 'application/json', 'x-api-key': '" + M.apiKey + "' },\n"
+      + "  body: JSON.stringify(payload)\n});\n\n"
+      + "const data = await res.json();\nconsole.log(data);";
+  }
+  function rawPython(v) {
+    return "import requests\n\nurl = \"" + M.evpUrl + "\"\n\n"
+      + "headers = {\n    \"Content-Type\": \"application/json\",\n    \"x-api-key\": \"" + M.apiKey + "\"\n}\n\n"
+      + "payload = {\n"
+      + "    \"partner_id\": \"" + M.partner + "\",\n"
+      + "    \"transaction_type\": \"SALE\",\n"
+      + "    \"amount\": " + v.amount + ",\n"
+      + "    \"curr_code\": " + v.currCode + ",\n"
+      + "    \"reference\": {\n"
+      + "        \"order_id\": \"" + v.orderId + "\",\n"
+      + "        \"customer_id\": \"" + v.customerId + "\",\n"
+      + "        \"transaction_ref\": \"" + v.txnRef + "\"\n"
+      + "    }\n}\n\n"
+      + "response = requests.post(url, headers=headers, json=payload)\nprint(response.json())";
+  }
+  function rawCsharp(v) {
+    return "using System.Net.Http;\nusing System.Net.Http.Json;\n\nvar client = new HttpClient();\nclient.DefaultRequestHeaders.Add(\"x-api-key\", \"" + M.apiKey + "\");\n\n"
+      + "var payload = new {\n    partner_id = \"" + M.partner + "\",\n    transaction_type = \"SALE\",\n    amount = " + v.amount + ",\n    curr_code = " + v.currCode + ",\n"
+      + "    reference = new { order_id = \"" + v.orderId + "\", customer_id = \"" + v.customerId + "\", transaction_ref = \"" + v.txnRef + "\" }\n};\n\n"
+      + "var response = await client.PostAsJsonAsync(\"" + M.evpUrl + "\", payload);\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);";
+  }
+  function rawCpp(v) {
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string body = R"({"partner_id":"' + M.partner + '","transaction_type":"SALE","amount":' + v.amount + ',"curr_code":' + v.currCode
+      + ',"reference":{"order_id":"' + v.orderId + '","customer_id":"' + v.customerId + '","transaction_ref":"' + v.txnRef + '"}})"; \n\n'
+      + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "Content-Type: application/json");\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-api-key: ' + M.apiKey + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, "' + M.evpUrl + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+  function rawPhp(v) {
+    return "<?php\n\n\$payload = [\n    'partner_id'        => '" + M.partner + "',\n    'transaction_type' => 'SALE',\n    'amount'            => " + v.amount + ",\n    'curr_code'         => " + v.currCode + ",\n"
+      + "    'reference'         => [\n        'order_id'        => '" + v.orderId + "',\n        'customer_id'     => '" + v.customerId + "',\n        'transaction_ref' => '" + v.txnRef + "'\n    ]\n];\n\n"
+      + "\$ch = curl_init('" + M.evpUrl + "');\ncurl_setopt_array(\$ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_POST           => true,\n    CURLOPT_POSTFIELDS     => json_encode(\$payload),\n    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-api-key: " + M.apiKey + "']\n]);\n\n\$response = curl_exec(\$ch);\ncurl_close(\$ch);\nvar_dump(json_decode(\$response, true));";
+  }
+  function rawHtml(v) {
+    var p = JSON.stringify(rawPayload(v), null, 4);
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"><title>EVP Payment</title></head><body>\n<button onclick="createPayment()">Pay</button>\n<pre id="result"></pre>\n<script>\nasync function createPayment() {\n  const payload = ' + p + ';\n  const res = await fetch("' + M.evpUrl + '", {\n    method: "POST",\n    headers: { "Content-Type": "application/json", "x-api-key": "' + M.apiKey + '" },\n    body: JSON.stringify(payload)\n  });\n  const data = await res.json();\n  document.getElementById("result").textContent = JSON.stringify(data, null, 2);\n}\n<\/script></body></html>';
+  }
+
+  var rawFns = {
+    nodejs: rawNodejs, js: rawJs, python: rawPython,
+    csharp: rawCsharp, cpp: rawCpp, php: rawPhp, html: rawHtml
+  };
+  var genFns = {
+    nodejs: genNodejs, js: genJs, python: genPython,
+    csharp: genCsharp, cpp: genCpp, php: genPhp, html: genHtml
+  };
+
+  var activeLang = 'nodejs';
+
+  function updateCode() {
+    var v = vals();
+    Object.keys(genFns).forEach(function (lang) {
+      var el = document.getElementById('code-' + lang);
+      if (el) el.innerHTML = genFns[lang](v);
+    });
+  }
+
+  /* tab switching */
+  document.querySelectorAll('.lang-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.lang-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.lang-body').forEach(function (b) { b.classList.remove('active'); });
+      tab.classList.add('active');
+      activeLang = tab.getAttribute('data-lang');
+      var body = document.getElementById('lang-' + activeLang);
+      if (body) body.classList.add('active');
+    });
+  });
+
+  /* copy buttons */
+  document.querySelectorAll('.code-copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var targetId = btn.getAttribute('data-target');
+      var lang = targetId ? targetId.replace('code-', '') : activeLang;
+      var v = vals();
+      var raw = rawFns[lang] ? rawFns[lang](v) : '';
+      if (!raw) return;
+      navigator.clipboard.writeText(raw).then(function () {
+        btn.classList.add('copied');
+        var orig = btn.innerHTML;
+        btn.innerHTML = btn.innerHTML.replace(/Copy/i, 'Copied!');
+        setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
+      });
+    });
+  });
+
+  /* live update on form change */
+  ['f_amount','f_currCode','f_orderId','f_customerId','f_transactionRef'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateCode);
+  });
+
+  /* initial render */
+  updateCode();
+})();
+</script>
+
+<%- include('partials/visto-bottom') %>
