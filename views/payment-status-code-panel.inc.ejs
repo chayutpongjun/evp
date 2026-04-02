@@ -1,0 +1,895 @@
+<style>
+  .code-panel {
+    margin-top: 16px;
+    border: 1px solid #111827;
+    border-radius: 14px;
+    background: #060b14;
+    overflow: hidden;
+  }
+  .code-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+  }
+  .code-panel-head h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #e5e7eb;
+  }
+  .code-panel-head p { margin: 0; font-size: 11px; color: #4b5563; }
+
+  .lang-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid #111827;
+    background: #080e1a;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .lang-tabs::-webkit-scrollbar { display: none; }
+  .lang-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color .15s, border-color .15s;
+    user-select: none;
+  }
+  .lang-tab:hover:not(.active) { color: #9ca3af; }
+  .lang-tab.active { color: #e5e7eb; border-color: #00e676; }
+  .lang-tab .lang-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .lang-body { display: none; }
+  .lang-body.active { display: block; }
+
+  .code-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px 6px;
+  }
+  .code-toolbar span {
+    font-size: 11px;
+    color: #374151;
+    font-family: monospace;
+  }
+  .code-copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px;
+    border-radius: 7px;
+    border: 1px solid #1f2937;
+    background: transparent;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .code-copy-btn:hover { border-color: #374151; color: #e5e7eb; }
+  .code-copy-btn.copied { color: #00e676; border-color: rgba(0,230,118,.35); }
+
+  .code-block {
+    margin: 0 16px 16px;
+    background: #020609;
+    border: 1px solid #0d1117;
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    overflow-x: auto;
+    white-space: pre;
+    color: #d1d5db;
+    max-height: 460px;
+    overflow-y: auto;
+  }
+
+  .curl-subtabs {
+    display: flex; gap: 6px; margin-bottom: 0;
+  }
+  .curl-subtab {
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .curl-subtab.active {
+    background: rgba(17, 24, 39, 0.9);
+    border-color: #e5e7eb;
+    color: #f9fafb;
+    font-weight: 700;
+    box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.15);
+  }
+
+  .t-kw   { color: #c084fc; }
+  .t-fn   { color: #60a5fa; }
+  .t-str  { color: #86efac; }
+  .t-num  { color: #fde68a; }
+  .t-cmt  { color: #374151; font-style: italic; }
+  .t-type { color: #f9a8d4; }
+  .t-var  { color: #e5e7eb; }
+  .t-op   { color: #94a3b8; }
+  .t-prop { color: #93c5fd; }
+  .t-anno { color: #fbbf24; }
+</style>
+
+<div class="code-panel">
+  <div class="code-panel-head">
+    <div>
+      <h4>Code Examples</h4>
+      <p>ตัวอย่างโค้ดสำหรับเรียก <code style="font-size:12px;color:#93c5fd;">GET /api/payments/:evpPaymentId</code> — อัปเดตอัตโนมัติตาม EVP Payment ID</p>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(34,197,94,.08);color:#86efac;border:1px solid #14532d;">
+        Gateway: <span style="color:#86efac;font-family:monospace;"><%= PROXY_STATUS_URL %></span>
+      </span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(148,163,184,.06);color:#64748b;border:1px solid #1f2937;">
+        Direct EVP: <span style="color:#94a3b8;font-family:monospace;"><%= BASE_URL %>/v1/terminals/<%= TERMINAL %>/payments/&lt;id&gt;</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="lang-tabs">
+    <div class="lang-tab active" data-lang="curl">
+      <span class="lang-dot" style="background:#f97316;"></span>cURL
+    </div>
+    <div class="lang-tab" data-lang="nodejs">
+      <span class="lang-dot" style="background:#68a063;"></span>Node.js
+    </div>
+    <div class="lang-tab" data-lang="js">
+      <span class="lang-dot" style="background:#f7df1e;"></span>JavaScript
+    </div>
+    <div class="lang-tab" data-lang="python">
+      <span class="lang-dot" style="background:#3776ab;"></span>Python
+    </div>
+    <div class="lang-tab" data-lang="csharp">
+      <span class="lang-dot" style="background:#512bd4;"></span>C#
+    </div>
+    <div class="lang-tab" data-lang="cpp">
+      <span class="lang-dot" style="background:#00599c;"></span>C++
+    </div>
+    <div class="lang-tab" data-lang="php">
+      <span class="lang-dot" style="background:#8892be;"></span>PHP
+    </div>
+    <div class="lang-tab" data-lang="html">
+      <span class="lang-dot" style="background:#e34c26;"></span>HTML
+    </div>
+  </div>
+
+  <div class="lang-body active" id="lang-curl">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-curl">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-curl-proxy"></div>
+    <div class="code-block" id="code-curl-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-nodejs">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-nodejs">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-nodejs-proxy"></div>
+    <div class="code-block" id="code-nodejs-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-js">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-js">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-js-proxy"></div>
+    <div class="code-block" id="code-js-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-python">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-python">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-python-proxy"></div>
+    <div class="code-block" id="code-python-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-csharp">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-csharp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-csharp-proxy"></div>
+    <div class="code-block" id="code-csharp-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-cpp">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-cpp">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-cpp-proxy"></div>
+    <div class="code-block" id="code-cpp-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-php">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-php">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-php-proxy"></div>
+    <div class="code-block" id="code-php-direct" style="display:none;"></div>
+  </div>
+
+  <div class="lang-body" id="lang-html">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-html">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-html-proxy"></div>
+    <div class="code-block" id="code-html-direct" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var M = {
+    baseUrl:    '<%- BASE_URL %>',
+    terminal:   '<%- TERMINAL %>',
+    partner:    '<%- PARTNER %>',
+    apiKey:     '<%- API_KEY %>',
+    evpUrl:     '<%- EVP_URL %>',
+    proxyUrl:   '<%- APP_URL %>'
+  };
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function vals() {
+    var el = document.getElementById('evpPaymentId');
+    var id = (el && el.value.trim()) || '{evp_payment_id}';
+    return { evpPaymentId: id };
+  }
+
+  function evpBasePath() {
+    return M.baseUrl.replace(/\/$/, '') + '/v1/terminals/' + M.terminal + '/payments/';
+  }
+
+  function rawCurlStatus(v) {
+    var tid = M.terminal ? ' \\\n  -H "x-terminal-id: ' + M.terminal + '"' : '';
+    return 'curl -X GET ' + M.proxyUrl + '/api/payments/' + encodeURIComponent(v.evpPaymentId) + tid;
+  }
+
+  function rawCurlDirectStatus(v) {
+    return 'curl -X GET ' + evpBasePath() + encodeURIComponent(v.evpPaymentId) + ' \\\n'
+      + '  -H "x-api-key: ' + M.apiKey + '"';
+  }
+
+  function rawNodejsStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "const axios = require('axios');\n\nconst paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\nconst url = "
+      + JSON.stringify(base) + " + paymentId;\n\nasync function getPaymentStatus() {\n"
+      + "  const { data } = await axios.get(url, { headers: { 'x-terminal-id': '" + M.terminal + "' } });\n"
+      + "  console.log(data);\n}\n\ngetPaymentStatus();\n";
+  }
+
+  function rawNodejsEvpStatus(v) {
+    var base = evpBasePath();
+    return "const axios = require('axios');\n\nconst paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\nconst url = "
+      + JSON.stringify(base) + " + paymentId;\n\nasync function getPaymentStatus() {\n"
+      + "  const { data } = await axios.get(url, { headers: { 'x-api-key': '" + M.apiKey + "' } });\n"
+      + "  console.log(data);\n}\n\ngetPaymentStatus();\n";
+  }
+
+  function rawJsStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "const paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\nconst url = " + JSON.stringify(base) + " + paymentId;\n\n"
+      + "const res = await fetch(url, { headers: { 'x-terminal-id': '" + M.terminal + "' } });\n"
+      + "const data = await res.json();\nconsole.log(data);\n";
+  }
+
+  function rawJsEvpStatus(v) {
+    var base = evpBasePath();
+    return "const paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\nconst url = " + JSON.stringify(base) + " + paymentId;\n\n"
+      + "const res = await fetch(url, { headers: { 'x-api-key': '" + M.apiKey + "' } });\n"
+      + "const data = await res.json();\nconsole.log(data);\n";
+  }
+
+  function rawPythonStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return 'import requests\n\npayment_id = "' + v.evpPaymentId.replace(/"/g, '\\"') + '"\nurl = "' + base + '" + payment_id\n\n'
+      + 'response = requests.get(url, headers={"x-terminal-id": "' + M.terminal + '"})\nprint(response.json())\n';
+  }
+
+  function rawPythonEvpStatus(v) {
+    var base = evpBasePath();
+    return 'import requests\n\npayment_id = "' + v.evpPaymentId.replace(/"/g, '\\"') + '"\nurl = "' + base + '" + payment_id\n\n'
+      + 'response = requests.get(url, headers={"x-api-key": "' + M.apiKey + '"})\nprint(response.json())\n';
+  }
+
+  function rawCsharpStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return 'using System.Net.Http;\n\nvar client = new HttpClient();\nclient.DefaultRequestHeaders.Add("x-terminal-id", "' + M.terminal + '");\n'
+      + 'var paymentId = "' + v.evpPaymentId.replace(/"/g, '\\"') + '";\nvar url = "' + base + '" + paymentId;\n\nvar response = await client.GetAsync(url);\n'
+      + 'var result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);\n';
+  }
+
+  function rawCsharpEvpStatus(v) {
+    var base = evpBasePath();
+    return 'using System.Net.Http;\n\nvar client = new HttpClient();\n'
+      + 'client.DefaultRequestHeaders.Add("x-api-key", "' + M.apiKey + '");\n'
+      + 'var paymentId = "' + v.evpPaymentId.replace(/"/g, '\\"') + '";\nvar url = "' + base + '" + paymentId;\n\n'
+      + 'var response = await client.GetAsync(url);\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);\n';
+  }
+
+  function rawCppStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string paymentId = "' + v.evpPaymentId.replace(/"/g, '\\"') + '";\n'
+      + '    std::string url = "' + base + '" + paymentId;\n'
+      + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-terminal-id: ' + M.terminal + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+
+  function rawCppEvpStatus(v) {
+    var base = evpBasePath();
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string paymentId = "' + v.evpPaymentId.replace(/"/g, '\\"') + '";\n    std::string url = "' + base + '" + paymentId;\n'
+      + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-api-key: ' + M.apiKey + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+
+  function rawPhpStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "<?php\n\n$paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\n$url = '" + base + "' . $paymentId;\n\n"
+      + "$ch = curl_init($url);\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n"
+      + "    CURLOPT_HTTPHEADER => ['x-terminal-id: " + M.terminal + "']\n]);\n\n"
+      + "$response = curl_exec($ch);\ncurl_close($ch);\necho $response;\n";
+  }
+
+  function rawPhpEvpStatus(v) {
+    var base = evpBasePath();
+    return "<?php\n\n$paymentId = '" + v.evpPaymentId.replace(/'/g, "\\'") + "';\n$url = '" + base + "' . $paymentId;\n\n"
+      + "$ch = curl_init($url);\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n"
+      + "    CURLOPT_HTTPHEADER => ['x-api-key: " + M.apiKey + "']\n]);\n\n"
+      + "$response = curl_exec($ch);\ncurl_close($ch);\necho $response;\n";
+  }
+
+  function rawHtmlStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="loadStatus()">Get status</button>\n<pre id="r"></pre>\n<script>\nasync function loadStatus() {\n  const paymentId = \'' + v.evpPaymentId.replace(/'/g, "\\'") + '\';\n  const url = ' + JSON.stringify(base) + ' + paymentId;\n  const res = await fetch(url, { headers: { "x-terminal-id": "' + M.terminal + '" } });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
+  }
+
+  function rawHtmlEvpStatus(v) {
+    var base = evpBasePath();
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="loadStatus()">Get status</button>\n<pre id="r"></pre>\n<script>\nasync function loadStatus() {\n  const paymentId = \'' + v.evpPaymentId.replace(/'/g, "\\'") + '\';\n  const url = ' + JSON.stringify(base) + ' + paymentId;\n  const res = await fetch(url, { headers: { "x-api-key": "' + M.apiKey + '" } });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
+  }
+
+  function genCurlStatus(v) {
+    var idEsc = esc(v.evpPaymentId);
+    var statusUrl = esc(M.proxyUrl) + '/api/payments/' + idEsc;
+    var tidLine = M.terminal
+      ? ' \\\n  <span class="curl-flag">-H</span> <span class="curl-str">"x-terminal-id: ' + esc(M.terminal) + '"</span>'
+      : '';
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X GET</span> <span class="curl-url">' + statusUrl + '</span>' + tidLine;
+  }
+
+  function genCurlDirectStatus(v) {
+    var base = M.baseUrl.replace(/\/$/, '');
+    var idEsc = esc(v.evpPaymentId);
+    var u = esc(base) + '/v1/terminals/' + esc(M.terminal) + '/payments/' + idEsc;
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X GET</span> <span class="curl-url">' + u + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"x-api-key: ' + esc(M.apiKey) + '"</span>';
+  }
+
+  function genNodejsStatus(v) {
+    var base = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">getPaymentStatus</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">getPaymentStatus</span>();'
+    ].join('\n');
+  }
+
+  function genNodejsEvpStatus(v) {
+    var base = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">getPaymentStatus</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">getPaymentStatus</span>();'
+    ].join('\n');
+  }
+
+  function genJsStatus(v) {
+    var base = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '  <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '});',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genJsEvpStatus(v) {
+    var base = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '  <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '});',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genPythonStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '',
+      '<span class="t-var">payment_id</span> = <span class="t-str">"' + pidEsc + '"</span>',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(base) + '"</span> + <span class="t-var">payment_id</span>',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>={<span class="t-str">"x-terminal-id"</span>: <span class="t-str">"' + esc(M.terminal) + '"</span>})',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genPythonEvpStatus(v) {
+    var base = evpBasePath();
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '',
+      '<span class="t-var">payment_id</span> = <span class="t-str">"' + pidEsc + '"</span>',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(base) + '"</span> + <span class="t-var">payment_id</span>',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>={<span class="t-str">"x-api-key"</span>: <span class="t-str">"' + esc(M.apiKey) + '"</span>})',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genCsharpStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-terminal-id"</span>, <span class="t-str">"' + esc(M.terminal) + '"</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">paymentId</span> = <span class="t-str">"' + pidEsc + '"</span>;',
+      '<span class="t-kw">var</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">GetAsync</span>(<span class="t-var">url</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCsharpEvpStatus(v) {
+    var u = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-api-key"</span>, <span class="t-str">"' + esc(M.apiKey) + '"</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">paymentId</span> = <span class="t-str">"' + pidEsc + '"</span>;',
+      '<span class="t-kw">var</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">GetAsync</span>(<span class="t-var">url</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCppStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o status status.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">paymentId</span> = <span class="t-str">"' + pidEsc + '"</span>;',
+      '    <span class="t-type">std::string</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-terminal-id: ' + esc(M.terminal) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>, <span class="t-var">url</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPGET</span>, <span class="t-num">1L</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>, <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>, &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genCppEvpStatus(v) {
+    var u = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o status status.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">paymentId</span> = <span class="t-str">"' + pidEsc + '"</span>;',
+      '    <span class="t-type">std::string</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-api-key: ' + esc(M.apiKey) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>, <span class="t-var">url</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPGET</span>, <span class="t-num">1L</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>, <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>, &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genPhpStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-var">$url</span> = <span class="t-str">\'' + u + '\'</span> . <span class="t-var">$paymentId</span>;',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-var">$url</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [<span class="t-str">\'x-terminal-id: ' + esc(M.terminal) + '\'</span>]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">echo</span> <span class="t-var">$response</span>;'
+    ].join('\n');
+  }
+
+  function genPhpEvpStatus(v) {
+    var u = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '<span class="t-var">$url</span> = <span class="t-str">\'' + u + '\'</span> . <span class="t-var">$paymentId</span>;',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-var">$url</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [<span class="t-str">\'x-api-key: ' + esc(M.apiKey) + '\'</span>]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">echo</span> <span class="t-var">$response</span>;'
+    ].join('\n');
+  }
+
+  function genHtmlStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span><span class="t-op">&gt;&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"loadStatus()"</span><span class="t-op">&gt;</span>Get status<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">loadStatus</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + u + '\'</span> + <span class="t-var">paymentId</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span> = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  function genHtmlEvpStatus(v) {
+    var u = esc(evpBasePath());
+    var pidEsc = esc(v.evpPaymentId);
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span><span class="t-op">&gt;&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"loadStatus()"</span><span class="t-op">&gt;</span>Get status<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">loadStatus</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str">\'' + pidEsc + '\'</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + u + '\'</span> + <span class="t-var">paymentId</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span> = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  var genFns = {
+    curl: {
+      proxy:  function (v) { return genCurlStatus(v); },
+      direct: function (v) { return genCurlDirectStatus(v); }
+    },
+    nodejs: {
+      proxy:  function (v) { return genNodejsStatus(v); },
+      direct: function (v) { return genNodejsEvpStatus(v); }
+    },
+    js: {
+      proxy:  function (v) { return genJsStatus(v); },
+      direct: function (v) { return genJsEvpStatus(v); }
+    },
+    python: {
+      proxy:  function (v) { return genPythonStatus(v); },
+      direct: function (v) { return genPythonEvpStatus(v); }
+    },
+    csharp: {
+      proxy:  function (v) { return genCsharpStatus(v); },
+      direct: function (v) { return genCsharpEvpStatus(v); }
+    },
+    cpp: {
+      proxy:  function (v) { return genCppStatus(v); },
+      direct: function (v) { return genCppEvpStatus(v); }
+    },
+    php: {
+      proxy:  function (v) { return genPhpStatus(v); },
+      direct: function (v) { return genPhpEvpStatus(v); }
+    },
+    html: {
+      proxy:  function (v) { return genHtmlStatus(v); },
+      direct: function (v) { return genHtmlEvpStatus(v); }
+    }
+  };
+
+  var rawFns = {
+    curl: {
+      proxy:  function (v) { return rawCurlStatus(v); },
+      direct: function (v) { return rawCurlDirectStatus(v); }
+    },
+    nodejs: {
+      proxy:  function (v) { return rawNodejsStatus(v); },
+      direct: function (v) { return rawNodejsEvpStatus(v); }
+    },
+    js: {
+      proxy:  function (v) { return rawJsStatus(v); },
+      direct: function (v) { return rawJsEvpStatus(v); }
+    },
+    python: {
+      proxy:  function (v) { return rawPythonStatus(v); },
+      direct: function (v) { return rawPythonEvpStatus(v); }
+    },
+    csharp: {
+      proxy:  function (v) { return rawCsharpStatus(v); },
+      direct: function (v) { return rawCsharpEvpStatus(v); }
+    },
+    cpp: {
+      proxy:  function (v) { return rawCppStatus(v); },
+      direct: function (v) { return rawCppEvpStatus(v); }
+    },
+    php: {
+      proxy:  function (v) { return rawPhpStatus(v); },
+      direct: function (v) { return rawPhpEvpStatus(v); }
+    },
+    html: {
+      proxy:  function (v) { return rawHtmlStatus(v); },
+      direct: function (v) { return rawHtmlEvpStatus(v); }
+    }
+  };
+
+  var activeLang = 'curl';
+  var activeCodeEx = 'proxy';
+
+  function setCodeExMode(mode) {
+    activeCodeEx = mode;
+    document.querySelectorAll('[data-code-ex]').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-code-ex') === mode);
+    });
+    ['curl','nodejs','js','python','csharp','cpp','php','html'].forEach(function (lang) {
+      var p = document.getElementById('code-' + lang + '-proxy');
+      var d = document.getElementById('code-' + lang + '-direct');
+      if (p) p.style.display = mode === 'proxy' ? '' : 'none';
+      if (d) d.style.display = mode === 'direct' ? '' : 'none';
+    });
+  }
+
+  function updateCode() {
+    var v = vals();
+    ['curl','nodejs','js','python','csharp','cpp','php','html'].forEach(function (lang) {
+      var pe = document.getElementById('code-' + lang + '-proxy');
+      var de = document.getElementById('code-' + lang + '-direct');
+      var g = genFns[lang];
+      if (g && pe) pe.innerHTML = g.proxy(v);
+      if (g && de) de.innerHTML = g.direct(v);
+    });
+  }
+
+  document.querySelectorAll('.lang-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.lang-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.lang-body').forEach(function (b) { b.classList.remove('active'); });
+      tab.classList.add('active');
+      activeLang = tab.getAttribute('data-lang');
+      var body = document.getElementById('lang-' + activeLang);
+      if (body) body.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('[data-code-ex]').forEach(function (st) {
+    st.addEventListener('click', function () {
+      setCodeExMode(st.getAttribute('data-code-ex'));
+    });
+  });
+
+  document.querySelectorAll('.code-copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var targetId = btn.getAttribute('data-target');
+      var lang = targetId ? targetId.replace('code-', '') : activeLang;
+      var v = vals();
+      var raw = '';
+      if (rawFns[lang] && rawFns[lang][activeCodeEx]) {
+        raw = rawFns[lang][activeCodeEx](v);
+      }
+      if (!raw) return;
+      navigator.clipboard.writeText(raw).then(function () {
+        btn.classList.add('copied');
+        var orig = btn.innerHTML;
+        btn.innerHTML = btn.innerHTML.replace(/Copy/i, 'Copied!');
+        setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
+      });
+    });
+  });
+
+  var pidInput = document.getElementById('evpPaymentId');
+  if (pidInput) pidInput.addEventListener('input', updateCode);
+  var pickEl = document.getElementById('paymentPick');
+  if (pickEl) pickEl.addEventListener('change', function () { setTimeout(updateCode, 50); });
+
+  updateCode();
+})();
+</script>

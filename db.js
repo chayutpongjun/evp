@@ -326,6 +326,23 @@ async function getMerchantByKey(key) {
   return r.recordset[0] || null;
 }
 
+// Look up a merchant by Terminal_ID only (used by x-terminal-id header in API calls)
+async function getMerchantByTerminalId(terminalId) {
+  const tid = String(terminalId || '').trim();
+  if (!tid) return null;
+  const pool = await getPool();
+  const r = await pool
+    .request()
+    .input('Terminal_ID', tid)
+    .query(`
+      SELECT TOP 1 *
+      FROM Tbl_EVPMerchant
+      WHERE Terminal_ID = @Terminal_ID
+      ORDER BY IsActive DESC, UpdatedAtUtc DESC, CreatedAtUtc DESC
+    `);
+  return r.recordset[0] || null;
+}
+
 // Move a merchant row to Tbl_EVPMerchant_Deleted instead of hard-deleting
 async function archiveMerchant(terminalId, merchantId, branchId) {
   const pool = await getPool();
@@ -407,10 +424,9 @@ module.exports = {
   upsertMerchant,
   listMerchants,
   getMerchantByKey,
+  getMerchantByTerminalId,
   archiveMerchant,
   toggleMerchantStatus,
   isWebhookProcessed,
   markWebhookProcessed
 };
-
-

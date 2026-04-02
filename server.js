@@ -12,6 +12,7 @@ const {
   upsertMerchant,
   listMerchants,
   getMerchantByKey,
+  getMerchantByTerminalId,
   archiveMerchant,
   toggleMerchantStatus,
   isWebhookProcessed,
@@ -64,6 +65,25 @@ async function tryGetMerchant() {
   }
 }
 
+// Resolve merchant: prefer x-terminal-id header, fall back to globally active merchant (when not required)
+async function resolveMerchant(req, options = {}) {
+  const requireTerminalId = !!options.requireTerminalId;
+  const tid = String(req.headers['x-terminal-id'] || '').trim();
+  if (tid) {
+    const m = await getMerchantByTerminalId(tid);
+    if (m) return m;
+    const err = new Error(`No merchant found for Terminal_ID: ${tid}`);
+    err.statusCode = 404;
+    throw err;
+  }
+  if (requireTerminalId) {
+    const err = new Error('Missing x-terminal-id header');
+    err.statusCode = 400;
+    throw err;
+  }
+  return getActiveMerchant();
+}
+
 function merchantRowKey(m) {
   if (!m) return '';
   return `${m.Terminal_ID}|${m.Merchant_ID}|${m.Branch_ID}`;
@@ -81,7 +101,19 @@ function mergeMerchantIntoDropdown(rows, merchant) {
 app.get('/payment', async (req, res) => {
   try {
     const merchant = await tryGetMerchant();
-    res.render('payment', { merchant });
+    const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+    res.render('payment', { merchant, appUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Render error');
+  }
+});
+
+app.get('/payment-v2', async (req, res) => {
+  try {
+    const merchant = await tryGetMerchant();
+    const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+    res.render('payment-v2', { merchant, appUrl });
   } catch (err) {
     console.error(err);
     res.status(500).send('Render error');
@@ -97,7 +129,8 @@ app.get('/payment-status', async (req, res) => {
         "SELECT TOP 200 Log_ID, Ref_TRN, Ref_Order_ID, Ref_Customer_ID, Res_Payment_ID, Res_Status, CreatedAtUtc FROM Tbl_EVPPayment ORDER BY Log_ID DESC"
       );
     const merchant = await tryGetMerchant();
-    res.render('payment-status', { merchant, payments: payments.recordset });
+    const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+    res.render('payment-status', { merchant, payments: payments.recordset, appUrl });
   } catch (err) {
     console.error(err);
     res.status(500).send('Render error');
@@ -511,7 +544,7 @@ app.post('/api/payments', async (req, res) => {
   }
 
   try {
-    const merchant = await getActiveMerchant();
+    const merchant = await resolveMerchant(req, { requireTerminalId: true });
     const baseUrl = String(merchant.BASE_URL || '').replace(/\/$/, '');
     const terminalId = merchant.Terminal_ID;
     const partnerId = merchant.Partner_ID;
@@ -590,6 +623,9 @@ app.post('/api/payments', async (req, res) => {
       evp_response: responseBody
     });
   } catch (err) {
+    if (err.statusCode && !err.response) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
     console.error('Create payment error:', err.response?.data || err.message);
     const statusCode = err.response?.status || 500;
     return res
@@ -613,7 +649,7 @@ app.get('/api/payments/:evpPaymentId', async (req, res) => {
   const { evpPaymentId } = req.params;
 
   try {
-    const merchant = await getActiveMerchant();
+    const merchant = await resolveMerchant(req, { requireTerminalId: true });
     const baseUrl = String(merchant.BASE_URL || '').replace(/\/$/, '');
     const terminalId = merchant.Terminal_ID;
     const apiKey = merchant.ApiKey;
@@ -663,6 +699,9 @@ app.get('/api/payments/:evpPaymentId', async (req, res) => {
       evp_response: responseBody
     });
   } catch (err) {
+    if (err.statusCode && !err.response) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
     console.error('Get status error:', err.response?.data || err.message);
     const statusCode = err.response?.status || 500;
     return res
@@ -696,4 +735,3 @@ initSchema()
     console.error('Failed to init DB schema:', err);
     process.exit(1);
   });
-

@@ -5,6 +5,15 @@
   pageSubtitle: 'Create payment ผ่าน EVP แล้วบันทึกลง Tbl_EVPPayment',
   merchant
 }) %>
+<%
+  var BASE_URL   = merchant ? (merchant.BASE_URL || '').replace(/\/$/, '') : 'https://api.sandbox.evp-pay.tech';
+  var TERMINAL   = merchant ? merchant.Terminal_ID : 'TID001';
+  var PARTNER    = merchant ? merchant.Partner_ID  : 'PARTNER_ID';
+  var API_KEY    = merchant ? merchant.ApiKey      : 'YOUR_API_KEY';
+  var EVP_URL    = BASE_URL + '/v1/terminals/' + TERMINAL + '/payments';
+  var APP_URL    = (typeof appUrl !== 'undefined' && appUrl) ? String(appUrl).replace(/\/$/, '') : 'http://localhost:3000';
+  var PROXY_PAYMENTS_URL = APP_URL + '/api/payments';
+%>
 
 <style>
   /* ── two-column layout ── */
@@ -158,9 +167,9 @@
     display: flex; gap: 6px; margin-bottom: 10px;
   }
   .curl-subtab {
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid #1f2937;
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid transparent;
     background: transparent;
     color: #6b7280;
     font-size: 11px;
@@ -168,7 +177,13 @@
     cursor: pointer;
     transition: all .15s;
   }
-  .curl-subtab.active { background: #111827; border-color: #374151; color: #e5e7eb; }
+  .curl-subtab.active {
+    background: rgba(17, 24, 39, 0.9);
+    border-color: #e5e7eb;
+    color: #f9fafb;
+    font-weight: 700;
+    box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.15);
+  }
 
   /* response panel */
   .res-panel {
@@ -280,7 +295,6 @@
     <div class="req-tabs">
       <div class="req-tab active" data-tab="headers">Headers</div>
       <div class="req-tab" data-tab="body">Body</div>
-      <div class="req-tab" data-tab="curl">cURL</div>
     </div>
 
     <!-- Headers tab -->
@@ -301,29 +315,6 @@
       <div class="req-json" id="bodyPreview"></div>
     </div>
 
-    <!-- cURL tab -->
-    <div class="req-body" id="tab-curl">
-      <div class="curl-subtabs">
-        <button class="curl-subtab active" data-curl="proxy">Proxy (local)</button>
-        <% if (merchant) { %>
-          <button class="curl-subtab" data-curl="direct">Direct EVP</button>
-        <% } %>
-      </div>
-      <div id="curlProxy" class="req-curl"></div>
-      <% if (merchant) { %>
-        <div id="curlDirect" class="req-curl" style="display:none;"></div>
-      <% } %>
-      <div style="margin-top:10px;display:flex;gap:8px;">
-        <button class="copy-btn" id="btnCopyCurl">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copy cURL
-        </button>
-        <button class="copy-btn" id="btnCopyJson">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          Copy JSON
-        </button>
-      </div>
-    </div>
 
   </div><!-- /req-panel -->
 </div><!-- /pay-layout -->
@@ -336,10 +327,11 @@
       baseUrl:    '<%- (merchant.BASE_URL || '').replace(/\/$/, '') %>',
       terminalId: '<%- merchant.Terminal_ID %>',
       partnerId:  '<%- merchant.Partner_ID %>',
-      apiKey:     '<%- merchant.ApiKey %>'
+      apiKey:     '<%- merchant.ApiKey %>',
     <% } else { %>
-      baseUrl: '', terminalId: '', partnerId: '', apiKey: ''
+      baseUrl: '', terminalId: '', partnerId: '', apiKey: '',
     <% } %>
+    proxyUrl: '<%- APP_URL %>'
   };
 
   /* ── DOM refs ── */
@@ -350,8 +342,6 @@
   var f_txnref   = document.getElementById('f_transactionRef');
 
   var bodyPreview    = document.getElementById('bodyPreview');
-  var curlProxyEl    = document.getElementById('curlProxy');
-  var curlDirectEl   = document.getElementById('curlDirect');
   var reqUrlDisplay  = document.getElementById('reqUrlDisplay');
   var resStatusBadge = document.getElementById('resStatusBadge');
   var createResult   = document.getElementById('createResult');
@@ -395,45 +385,13 @@
     };
   }
 
-  var activeCurlMode = 'proxy';
-
-  function buildCurlProxy() {
-    var p = buildProxyPayload();
-    var origin = window.location.origin;
-    var body = JSON.stringify(p, null, 2);
-    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(origin + '/api/payments') + '</span> \\\n'
-      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
-      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
-  }
-
-  function buildCurlDirect() {
-    if (!MERCHANT.baseUrl) return '<span style="color:#4b5563;">No active merchant configured.</span>';
-    var url = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
-    var p = buildPayload();
-    var body = JSON.stringify(p, null, 2);
-    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(url) + '</span> \\\n'
-      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
-      + '  <span class="curl-flag">-H</span> <span class="curl-str">"x-api-key: ' + esc(MERCHANT.apiKey) + '"</span> \\\n'
-      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
-  }
-
   function update() {
     /* body tab */
     var evpPayload = buildPayload();
     if (bodyPreview) bodyPreview.innerHTML = colorJson(evpPayload);
 
     /* url bar */
-    if (reqUrlDisplay) {
-      if (activeCurlMode === 'direct' && MERCHANT.baseUrl) {
-        reqUrlDisplay.textContent = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
-      } else {
-        reqUrlDisplay.textContent = '/api/payments';
-      }
-    }
-
-    /* curl tabs */
-    if (curlProxyEl)  curlProxyEl.innerHTML  = buildCurlProxy();
-    if (curlDirectEl) curlDirectEl.innerHTML = buildCurlDirect();
+    if (reqUrlDisplay) reqUrlDisplay.textContent = '/api/payments';
   }
 
   /* live update on input */
@@ -452,57 +410,6 @@
     });
   });
 
-  /* curl subtabs */
-  document.querySelectorAll('.curl-subtab').forEach(function (st) {
-    st.addEventListener('click', function () {
-      document.querySelectorAll('.curl-subtab').forEach(function (t) { t.classList.remove('active'); });
-      st.classList.add('active');
-      activeCurlMode = st.getAttribute('data-curl');
-      if (curlProxyEl)  curlProxyEl.style.display  = activeCurlMode === 'proxy'  ? '' : 'none';
-      if (curlDirectEl) curlDirectEl.style.display = activeCurlMode === 'direct' ? '' : 'none';
-      update();
-    });
-  });
-
-  /* copy cURL */
-  function copyText(text, btn) {
-    navigator.clipboard.writeText(text).then(function () {
-      btn.classList.add('copied');
-      var orig = btn.innerHTML;
-      btn.innerHTML = btn.innerHTML.replace(/Copy.*/i, 'Copied!');
-      setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1800);
-    });
-  }
-
-  var btnCopyCurl = document.getElementById('btnCopyCurl');
-  var btnCopyJson = document.getElementById('btnCopyJson');
-
-  if (btnCopyCurl) {
-    btnCopyCurl.addEventListener('click', function () {
-      var raw;
-      if (activeCurlMode === 'direct' && MERCHANT.baseUrl) {
-        var url = MERCHANT.baseUrl + '/v1/terminals/' + MERCHANT.terminalId + '/payments';
-        var p = buildPayload();
-        raw = 'curl -X POST ' + url + ' \\\n'
-          + '  -H "Content-Type: application/json" \\\n'
-          + '  -H "x-api-key: ' + MERCHANT.apiKey + '" \\\n'
-          + '  -d \'' + JSON.stringify(p, null, 2) + '\'';
-      } else {
-        var pp = buildProxyPayload();
-        raw = 'curl -X POST ' + window.location.origin + '/api/payments \\\n'
-          + '  -H "Content-Type: application/json" \\\n'
-          + '  -d \'' + JSON.stringify(pp, null, 2) + '\'';
-      }
-      copyText(raw, btnCopyCurl);
-    });
-  }
-
-  if (btnCopyJson) {
-    btnCopyJson.addEventListener('click', function () {
-      var p = activeCurlMode === 'direct' ? buildPayload() : buildProxyPayload();
-      copyText(JSON.stringify(p, null, 2), btnCopyJson);
-    });
-  }
 
   /* ── Form submit ── */
   var createForm = document.getElementById('createForm');
@@ -519,9 +426,11 @@
     createResult.textContent = '…';
 
     try {
+      var hdrs = { 'Content-Type': 'application/json' };
+      if (MERCHANT.terminalId) hdrs['x-terminal-id'] = MERCHANT.terminalId;
       var res = await fetch('/api/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: hdrs,
         body: JSON.stringify(payload)
       });
       var json = await res.json().catch(async function () { return { raw: await res.text() }; });
@@ -664,29 +573,27 @@
   .t-anno { color: #fbbf24; }   /* annotation / decorator */
 </style>
 
-<%
-  var BASE_URL   = merchant ? (merchant.BASE_URL || '').replace(/\/$/, '') : 'https://api.sandbox.evp-pay.tech';
-  var TERMINAL   = merchant ? merchant.Terminal_ID : 'TID001';
-  var PARTNER    = merchant ? merchant.Partner_ID  : 'PARTNER_ID';
-  var API_KEY    = merchant ? merchant.ApiKey      : 'YOUR_API_KEY';
-  var EVP_URL    = BASE_URL + '/v1/terminals/' + TERMINAL + '/payments';
-%>
-
 <div class="code-panel">
   <div class="code-panel-head">
     <div>
       <h4>Code Examples</h4>
-      <p>ตัวอย่างโค้ดสำหรับเรียก EVP Payment API — อัปเดตอัตโนมัติตามค่าฟอร์ม</p>
+      <p>ตัวอย่างโค้ดสำหรับเรียก <code style="font-size:12px;color:#93c5fd;">POST /api/payments</code> ผ่าน Gateway (แอปนี้) — อัปเดตอัตโนมัติตามค่าฟอร์ม</p>
     </div>
-    <div style="display:flex;gap:6px;">
-      <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(148,163,184,.08);color:#6b7280;border:1px solid #1f2937;">
-        Direct EVP: <span style="color:#60a5fa;font-family:monospace;"><%= EVP_URL %></span>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <span style="font-size:11px;padding:3px 9px;border-radius:6px;background:rgba(34,197,94,.08);color:#86efac;border:1px solid #14532d;">
+        Gateway: <span style="color:#86efac;font-family:monospace;"><%= PROXY_PAYMENTS_URL %></span>
+      </span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(148,163,184,.06);color:#64748b;border:1px solid #1f2937;">
+        Direct EVP: <span style="color:#94a3b8;font-family:monospace;"><%= EVP_URL %></span>
       </span>
     </div>
   </div>
 
   <div class="lang-tabs">
-    <div class="lang-tab active" data-lang="nodejs">
+    <div class="lang-tab active" data-lang="curl">
+      <span class="lang-dot" style="background:#f97316;"></span>cURL
+    </div>
+    <div class="lang-tab" data-lang="nodejs">
       <span class="lang-dot" style="background:#68a063;"></span>Node.js
     </div>
     <div class="lang-tab" data-lang="js">
@@ -709,88 +616,132 @@
     </div>
   </div>
 
-  <!-- Node.js -->
-  <div class="lang-body active" id="lang-nodejs">
+  <!-- cURL -->
+  <div class="lang-body active" id="lang-curl">
     <div class="code-toolbar">
-      <span>axios / node-fetch · Direct EVP</span>
-      <button class="code-copy-btn" data-target="code-nodejs">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-curl">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-nodejs"></div>
+    <div class="code-block" id="code-curl-proxy"></div>
+    <div class="code-block" id="code-curl-direct" style="display:none;"></div>
+  </div>
+
+  <!-- Node.js -->
+  <div class="lang-body" id="lang-nodejs">
+    <div class="code-toolbar">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-nodejs">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+    <div class="code-block" id="code-nodejs-proxy"></div>
+    <div class="code-block" id="code-nodejs-direct" style="display:none;"></div>
   </div>
 
   <!-- JavaScript (browser fetch) -->
   <div class="lang-body" id="lang-js">
     <div class="code-toolbar">
-      <span>fetch API · browser / Deno / Bun</span>
-      <button class="code-copy-btn" data-target="code-js">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-js">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-js"></div>
+    <div class="code-block" id="code-js-proxy"></div>
+    <div class="code-block" id="code-js-direct" style="display:none;"></div>
   </div>
 
   <!-- Python -->
   <div class="lang-body" id="lang-python">
     <div class="code-toolbar">
-      <span>requests library</span>
-      <button class="code-copy-btn" data-target="code-python">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-python">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-python"></div>
+    <div class="code-block" id="code-python-proxy"></div>
+    <div class="code-block" id="code-python-direct" style="display:none;"></div>
   </div>
 
   <!-- C# -->
   <div class="lang-body" id="lang-csharp">
     <div class="code-toolbar">
-      <span>HttpClient · .NET 6+</span>
-      <button class="code-copy-btn" data-target="code-csharp">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-csharp">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-csharp"></div>
+    <div class="code-block" id="code-csharp-proxy"></div>
+    <div class="code-block" id="code-csharp-direct" style="display:none;"></div>
   </div>
 
   <!-- C++ -->
   <div class="lang-body" id="lang-cpp">
     <div class="code-toolbar">
-      <span>libcurl · C++17</span>
-      <button class="code-copy-btn" data-target="code-cpp">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-cpp">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-cpp"></div>
+    <div class="code-block" id="code-cpp-proxy"></div>
+    <div class="code-block" id="code-cpp-direct" style="display:none;"></div>
   </div>
 
   <!-- PHP -->
   <div class="lang-body" id="lang-php">
     <div class="code-toolbar">
-      <span>cURL extension · PHP 8+</span>
-      <button class="code-copy-btn" data-target="code-php">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-php">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-php"></div>
+    <div class="code-block" id="code-php-proxy"></div>
+    <div class="code-block" id="code-php-direct" style="display:none;"></div>
   </div>
 
   <!-- HTML -->
   <div class="lang-body" id="lang-html">
     <div class="code-toolbar">
-      <span>Vanilla HTML + fetch · standalone page</span>
-      <button class="code-copy-btn" data-target="code-html">
+      <div class="curl-subtabs" style="margin:0;">
+        <button type="button" class="curl-subtab active" data-code-ex="proxy">Proxy (Gateway)</button>
+        <button type="button" class="curl-subtab" data-code-ex="direct">Direct EVP</button>
+      </div>
+      <button type="button" class="code-copy-btn" data-target="code-html">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
     </div>
-    <div class="code-block" id="code-html"></div>
+    <div class="code-block" id="code-html-proxy"></div>
+    <div class="code-block" id="code-html-direct" style="display:none;"></div>
   </div>
 
 </div><!-- /code-panel -->
@@ -803,7 +754,8 @@
     terminal:   '<%- TERMINAL %>',
     partner:    '<%- PARTNER %>',
     apiKey:     '<%- API_KEY %>',
-    evpUrl:     '<%- EVP_URL %>'
+    evpUrl:     '<%- EVP_URL %>',
+    proxyUrl:   '<%- APP_URL %>'
   };
 
   /* read live form values */
@@ -822,30 +774,77 @@
   }
 
   /* ── code generators ── */
+  function genCurlCreate(v) {
+    var proxyUrl = M.proxyUrl + '/api/payments';
+    var body = JSON.stringify({
+      amount:           v.amount,
+      currCode:         v.currCode,
+      orderId:          v.orderId,
+      customerId:       v.customerId,
+      transactionRef:   v.txnRef
+    }, null, 2);
+    var tidLine = M.terminal
+      ? '  <span class="curl-flag">-H</span> <span class="curl-str">"x-terminal-id: ' + esc(M.terminal) + '"</span> \\\n'
+      : '';
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(proxyUrl) + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
+      + tidLine
+      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
+  }
+
+  function genCurlStatus(v) {
+    var statusUrl = esc(M.proxyUrl) + '/api/payments/<span style="color:#fde68a;">{evp_payment_id}</span>';
+    var tidLine = M.terminal
+      ? ' \\\n  <span class="curl-flag">-H</span> <span class="curl-str">"x-terminal-id: ' + esc(M.terminal) + '"</span>'
+      : '';
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X GET</span> <span class="curl-url">' + statusUrl + '</span>' + tidLine;
+  }
+
+  function genCurlDirectCreate(v) {
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 2);
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + esc(M.evpUrl) + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"x-api-key: ' + esc(M.apiKey) + '"</span> \\\n'
+      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(body) + '\'</span>';
+  }
+
+  function genCurlDirectStatus(v) {
+    var base = M.baseUrl.replace(/\/$/, '');
+    var u = esc(base) + '/v1/terminals/' + esc(M.terminal) + '/payments/<span style="color:#fde68a;">{evp_payment_id}</span>';
+    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X GET</span> <span class="curl-url">' + u + '</span> \\\n'
+      + '  <span class="curl-flag">-H</span> <span class="curl-str">"x-api-key: ' + esc(M.apiKey) + '"</span>';
+  }
+
   function genNodejs(v) {
     return [
       '<span class="t-cmt">// npm install axios</span>',
       '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
       '',
       '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
-      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
-      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
-      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
-      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
-      '  <span class="t-prop">reference</span>: {',
-      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
-      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
-      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
-      '  }',
+      '  <span class="t-prop">amount</span>:          <span class="t-str">\'' + esc(v.amount) + '\'</span>,',
+      '  <span class="t-prop">currCode</span>:        <span class="t-str">\'' + esc(v.currCode) + '\'</span>,',
+      '  <span class="t-prop">orderId</span>:         <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '  <span class="t-prop">customerId</span>:      <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '  <span class="t-prop">transactionRef</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
       '};',
       '',
       '<span class="t-kw">async function</span> <span class="t-fn">createPayment</span>() {',
       '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">post</span>(',
-      '    <span class="t-str">\'' + esc(M.evpUrl) + '\'</span>,',
+      '    <span class="t-str">\'' + esc(M.proxyUrl + '/api/payments') + '\'</span>,',
       '    <span class="t-var">payload</span>,',
       '    { <span class="t-prop">headers</span>: {',
-      '        <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
-      '        <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '        <span class="t-str">\'Content-Type\'</span>:  <span class="t-str">\'application/json\'</span>,',
+      '        <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span>',
       '      }',
       '    }',
       '  );',
@@ -859,22 +858,18 @@
   function genJs(v) {
     return [
       '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
-      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
-      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
-      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
-      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
-      '  <span class="t-prop">reference</span>: {',
-      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
-      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
-      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
-      '  }',
+      '  <span class="t-prop">amount</span>:          <span class="t-str">\'' + esc(v.amount) + '\'</span>,',
+      '  <span class="t-prop">currCode</span>:        <span class="t-str">\'' + esc(v.currCode) + '\'</span>,',
+      '  <span class="t-prop">orderId</span>:         <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '  <span class="t-prop">customerId</span>:      <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '  <span class="t-prop">transactionRef</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
       '};',
       '',
-      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>, {',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.proxyUrl + '/api/payments') + '\'</span>, {',
       '  <span class="t-prop">method</span>:  <span class="t-str">\'POST\'</span>,',
       '  <span class="t-prop">headers</span>: {',
-      '    <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
-      '    <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '    <span class="t-str">\'Content-Type\'</span>:  <span class="t-str">\'application/json\'</span>,',
+      '    <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span>',
       '  },',
       '  <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">payload</span>)',
       '});',
@@ -888,25 +883,20 @@
     return [
       '<span class="t-cmt"># pip install requests</span>',
       '<span class="t-kw">import</span> <span class="t-var">requests</span>',
-      '<span class="t-kw">import</span> <span class="t-var">json</span>',
       '',
-      '<span class="t-var">url</span> = <span class="t-str">"' + esc(M.evpUrl) + '"</span>',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(M.proxyUrl + '/api/payments') + '"</span>',
       '',
       '<span class="t-var">headers</span> = {',
-      '    <span class="t-str">"Content-Type"</span>: <span class="t-str">"application/json"</span>,',
-      '    <span class="t-str">"x-api-key"</span>:     <span class="t-str">"' + esc(M.apiKey) + '"</span>',
+      '    <span class="t-str">"Content-Type"</span>:  <span class="t-str">"application/json"</span>,',
+      '    <span class="t-str">"x-terminal-id"</span>: <span class="t-str">"' + esc(M.terminal) + '"</span>',
       '}',
       '',
       '<span class="t-var">payload</span> = {',
-      '    <span class="t-str">"partner_id"</span>:        <span class="t-str">"' + esc(M.partner) + '"</span>,',
-      '    <span class="t-str">"transaction_type"</span>: <span class="t-str">"SALE"</span>,',
-      '    <span class="t-str">"amount"</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
-      '    <span class="t-str">"curr_code"</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
-      '    <span class="t-str">"reference"</span>: {',
-      '        <span class="t-str">"order_id"</span>:        <span class="t-str">"' + esc(v.orderId) + '"</span>,',
-      '        <span class="t-str">"customer_id"</span>:     <span class="t-str">"' + esc(v.customerId) + '"</span>,',
-      '        <span class="t-str">"transaction_ref"</span>: <span class="t-str">"' + esc(v.txnRef) + '"</span>',
-      '    }',
+      '    <span class="t-str">"amount"</span>:          <span class="t-str">"' + esc(v.amount) + '"</span>,',
+      '    <span class="t-str">"currCode"</span>:        <span class="t-str">"' + esc(v.currCode) + '"</span>,',
+      '    <span class="t-str">"orderId"</span>:         <span class="t-str">"' + esc(v.orderId) + '"</span>,',
+      '    <span class="t-str">"customerId"</span>:      <span class="t-str">"' + esc(v.customerId) + '"</span>,',
+      '    <span class="t-str">"transactionRef"</span>: <span class="t-str">"' + esc(v.txnRef) + '"</span>',
       '}',
       '',
       '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">post</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>=<span class="t-var">headers</span>, <span class="t-prop">json</span>=<span class="t-var">payload</span>)',
@@ -918,7 +908,215 @@
     return [
       '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
       '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>.<span class="t-type">Json</span>;',
-      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Text</span>.<span class="t-type">Json</span>.<span class="t-type">Serialization</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-terminal-id"</span>, <span class="t-str">"' + esc(M.terminal) + '"</span>);',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">payload</span> = <span class="t-kw">new</span> {',
+      '    amount          = <span class="t-str">"' + esc(v.amount) + '"</span>,',
+      '    currCode        = <span class="t-str">"' + esc(v.currCode) + '"</span>,',
+      '    orderId         = <span class="t-str">"' + esc(v.orderId) + '"</span>,',
+      '    customerId      = <span class="t-str">"' + esc(v.customerId) + '"</span>,',
+      '    transactionRef  = <span class="t-str">"' + esc(v.txnRef) + '"</span>',
+      '};',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">PostAsJsonAsync</span>(',
+      '    <span class="t-str">"' + esc(M.proxyUrl + '/api/payments') + '"</span>,',
+      '    <span class="t-var">payload</span>',
+      ');',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCpp(v) {
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o payment payment.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">body</span> = <span class="t-str">R"({"amount":"' + esc(v.amount) + '","currCode":"' + esc(v.currCode) + '","orderId":"' + esc(v.orderId) + '","customerId":"' + esc(v.customerId) + '","transactionRef":"' + esc(v.txnRef) + '"})"</span>;',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"Content-Type: application/json"</span>);',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-terminal-id: ' + esc(M.terminal) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>,        <span class="t-str">"' + esc(M.proxyUrl + '/api/payments') + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>,  <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_POSTFIELDS</span>,  <span class="t-var">body</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>,    &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genPhp(v) {
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$payload</span> = [',
+      '    <span class="t-str">\'amount\'</span>          => <span class="t-str">\'' + esc(v.amount) + '\'</span>,',
+      '    <span class="t-str">\'currCode\'</span>        => <span class="t-str">\'' + esc(v.currCode) + '\'</span>,',
+      '    <span class="t-str">\'orderId\'</span>         => <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '    <span class="t-str">\'customerId\'</span>      => <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '    <span class="t-str">\'transactionRef\'</span> => <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '];',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-str">\'' + esc(M.proxyUrl + '/api/payments') + '\'</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_POST</span>           => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_POSTFIELDS</span>     => <span class="t-fn">json_encode</span>(<span class="t-var">$payload</span>),',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [',
+      '        <span class="t-str">\'Content-Type: application/json\'</span>,',
+      '        <span class="t-str">\'x-terminal-id: ' + esc(M.terminal) + '\'</span>',
+      '    ]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">var_dump</span>(<span class="t-fn">json_decode</span>(<span class="t-var">$response</span>, <span class="t-kw">true</span>));'
+    ].join('\n');
+  }
+
+  function genHtml(v) {
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span> <span class="t-prop">lang</span>=<span class="t-str">"en"</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;</span><span class="t-op">&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"pay()"</span><span class="t-op">&gt;</span>Pay<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">pay</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.proxyUrl + '/api/payments') + '\'</span>, {',
+      '    <span class="t-prop">method</span>: <span class="t-str">\'POST\'</span>,',
+      '    <span class="t-prop">headers</span>: {',
+      '      <span class="t-str">\'Content-Type\'</span>:  <span class="t-str">\'application/json\'</span>,',
+      '      <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span>',
+      '    },',
+      '    <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>({',
+      '      <span class="t-prop">amount</span>:          <span class="t-str">\'' + esc(v.amount) + '\'</span>,',
+      '      <span class="t-prop">currCode</span>:        <span class="t-str">\'' + esc(v.currCode) + '\'</span>,',
+      '      <span class="t-prop">orderId</span>:         <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '      <span class="t-prop">customerId</span>:      <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '      <span class="t-prop">transactionRef</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '    })',
+      '  });',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span>',
+      '    = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  function evpBasePath() {
+    return M.baseUrl.replace(/\/$/, '') + '/v1/terminals/' + M.terminal + '/payments/';
+  }
+
+  function genNodejsDirect(v) {
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
+      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
+      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(String(Number(v.amount) || 0)) + '</span>,',
+      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(String(Number(v.currCode) || 764)) + '</span>,',
+      '  <span class="t-prop">reference</span>: {',
+      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '  }',
+      '};',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">createPayment</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">post</span>(',
+      '    <span class="t-str">\'' + esc(M.evpUrl) + '\'</span>,',
+      '    <span class="t-var">payload</span>,',
+      '    { <span class="t-prop">headers</span>: {',
+      '        <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
+      '        <span class="t-str">\'x-api-key\'</span>:    <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '      }',
+      '    }',
+      '  );',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">createPayment</span>();'
+    ].join('\n');
+  }
+
+  function genJsDirect(v) {
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">payload</span> = {',
+      '  <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
+      '  <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
+      '  <span class="t-prop">amount</span>:            <span class="t-num">' + esc(String(Number(v.amount) || 0)) + '</span>,',
+      '  <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(String(Number(v.currCode) || 764)) + '</span>,',
+      '  <span class="t-prop">reference</span>: {',
+      '    <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
+      '    <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
+      '    <span class="t-prop">transaction_ref</span>: <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
+      '  }',
+      '};',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>, {',
+      '  <span class="t-prop">method</span>:  <span class="t-str">\'POST\'</span>,',
+      '  <span class="t-prop">headers</span>: {',
+      '    <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
+      '    <span class="t-str">\'x-api-key\'</span>:    <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '  },',
+      '  <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">payload</span>)',
+      '});',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genPythonDirect(v) {
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(M.evpUrl) + '"</span>',
+      '',
+      '<span class="t-var">payload</span> = {',
+      '    <span class="t-str">"partner_id"</span>:        <span class="t-str">"' + esc(M.partner) + '"</span>,',
+      '    <span class="t-str">"transaction_type"</span>: <span class="t-str">"SALE"</span>,',
+      '    <span class="t-str">"amount"</span>:            <span class="t-num">' + (Number(v.amount) || 0) + '</span>,',
+      '    <span class="t-str">"curr_code"</span>:         <span class="t-num">' + (Number(v.currCode) || 764) + '</span>,',
+      '    <span class="t-str">"reference"</span>: {',
+      '        <span class="t-str">"order_id"</span>:        <span class="t-str">"' + esc(v.orderId) + '"</span>,',
+      '        <span class="t-str">"customer_id"</span>:     <span class="t-str">"' + esc(v.customerId) + '"</span>,',
+      '        <span class="t-str">"transaction_ref"</span>: <span class="t-str">"' + esc(v.txnRef) + '"</span>',
+      '    }',
+      '}',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">post</span>(<span class="t-var">url</span>, <span class="t-prop">json</span>=<span class="t-var">payload</span>, <span class="t-prop">headers</span>={',
+      '    <span class="t-str">"x-api-key"</span>: <span class="t-str">"' + esc(M.apiKey) + '"</span>',
+      '})',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genCsharpDirect(v) {
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>.<span class="t-type">Json</span>;',
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>.<span class="t-type">Headers</span>;',
       '',
       '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
       '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-api-key"</span>, <span class="t-str">"' + esc(M.apiKey) + '"</span>);',
@@ -926,9 +1124,9 @@
       '<span class="t-kw">var</span> <span class="t-var">payload</span> = <span class="t-kw">new</span> {',
       '    partner_id        = <span class="t-str">"' + esc(M.partner) + '"</span>,',
       '    transaction_type  = <span class="t-str">"SALE"</span>,',
-      '    amount            = <span class="t-num">' + esc(v.amount) + '</span>,',
-      '    curr_code         = <span class="t-num">' + esc(v.currCode) + '</span>,',
-      '    reference = <span class="t-kw">new</span> {',
+      '    amount            = <span class="t-num">' + esc(String(Number(v.amount) || 0)) + '</span>,',
+      '    curr_code         = <span class="t-num">' + esc(String(Number(v.currCode) || 764)) + '</span>,',
+      '    reference         = <span class="t-kw">new</span> {',
       '        order_id        = <span class="t-str">"' + esc(v.orderId) + '"</span>,',
       '        customer_id     = <span class="t-str">"' + esc(v.customerId) + '"</span>,',
       '        transaction_ref = <span class="t-str">"' + esc(v.txnRef) + '"</span>',
@@ -945,31 +1143,18 @@
     ].join('\n');
   }
 
-  function genCpp(v) {
+  function genCppDirect(v) {
     return [
       '<span class="t-cmt">// g++ -std=c++17 -lcurl -o payment payment.cpp</span>',
       '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
       '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
       '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
       '',
-      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">contents</span>, <span class="t-type">size_t</span> <span class="t-var">size</span>,',
-      '                          <span class="t-type">size_t</span> <span class="t-var">nmemb</span>, <span class="t-type">std::string</span>* <span class="t-var">s</span>) {',
-      '    <span class="t-var">s</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">contents</span>, <span class="t-var">size</span> * <span class="t-var">nmemb</span>);',
-      '    <span class="t-kw">return</span> <span class="t-var">size</span> * <span class="t-var">nmemb</span>;',
-      '}',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
       '',
       '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
-      '    <span class="t-type">std::string</span> <span class="t-var">body</span> = <span class="t-type">std::string</span>(<span class="t-str">"{</span>\\n<span class="t-str">"</span>)',
-      '      + <span class="t-str">"  \\"partner_id\\": \\"'        + esc(M.partner)    + '\\"," </span>\\n',
-      '      + <span class="t-str">"  \\"transaction_type\\": \\"SALE\\"," </span>\\n',
-      '      + <span class="t-str">"  \\"amount\\": '              + esc(v.amount)     + ',"</span>\\n',
-      '      + <span class="t-str">"  \\"curr_code\\": '           + esc(v.currCode)   + ',"</span>\\n',
-      '      + <span class="t-str">"  \\"reference\\": {"</span>\\n',
-      '      + <span class="t-str">"    \\"order_id\\": \\"'       + esc(v.orderId)    + '\\"," </span>\\n',
-      '      + <span class="t-str">"    \\"customer_id\\": \\"'    + esc(v.customerId) + '\\"," </span>\\n',
-      '      + <span class="t-str">"    \\"transaction_ref\\": \\"'+ esc(v.txnRef)     + '\\"" </span>\\n',
-      '      + <span class="t-str">"  }}"</span>;',
-      '',
+      '    <span class="t-type">std::string</span> <span class="t-var">body</span> = <span class="t-str">R"({"partner_id":"' + esc(M.partner) + '","transaction_type":"SALE","amount":' + (Number(v.amount) || 0) + ',"curr_code":' + (Number(v.currCode) || 764) + ',"reference":{"order_id":"' + esc(v.orderId) + '","customer_id":"' + esc(v.customerId) + '","transaction_ref":"' + esc(v.txnRef) + '"}})"</span>;',
       '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
       '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
       '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
@@ -990,16 +1175,16 @@
     ].join('\n');
   }
 
-  function genPhp(v) {
+  function genPhpDirect(v) {
     return [
       '<span class="t-op">&lt;?php</span>',
       '',
       '<span class="t-var">$payload</span> = [',
       '    <span class="t-str">\'partner_id\'</span>        => <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
       '    <span class="t-str">\'transaction_type\'</span> => <span class="t-str">\'SALE\'</span>,',
-      '    <span class="t-str">\'amount\'</span>            => <span class="t-num">' + esc(v.amount) + '</span>,',
-      '    <span class="t-str">\'curr_code\'</span>         => <span class="t-num">' + esc(v.currCode) + '</span>,',
-      '    <span class="t-str">\'reference\'</span>         => [',
+      '    <span class="t-str">\'amount\'</span>            => <span class="t-num">' + (Number(v.amount) || 0) + '</span>,',
+      '    <span class="t-str">\'curr_code\'</span>         => <span class="t-num">' + (Number(v.currCode) || 764) + '</span>,',
+      '    <span class="t-str">\'reference\'</span> => [',
       '        <span class="t-str">\'order_id\'</span>        => <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
       '        <span class="t-str">\'customer_id\'</span>     => <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
       '        <span class="t-str">\'transaction_ref\'</span> => <span class="t-str">\'' + esc(v.txnRef) + '\'</span>',
@@ -1023,24 +1208,19 @@
     ].join('\n');
   }
 
-  function genHtml(v) {
+  function genHtmlDirect(v) {
     return [
       '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
-      '<span class="t-op">&lt;</span><span class="t-kw">html</span> <span class="t-prop">lang</span>=<span class="t-str">"en"</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;</span>',
-      '  <span class="t-op">&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;</span>',
-      '  <span class="t-op">&lt;</span><span class="t-kw">title</span><span class="t-op">&gt;</span>EVP Payment<span class="t-op">&lt;/</span><span class="t-kw">title</span><span class="t-op">&gt;</span>',
-      '<span class="t-op">&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
-      '',
-      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"createPayment()"</span><span class="t-op">&gt;</span>Pay<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
-      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"result"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
-      '',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span> <span class="t-prop">lang</span>=<span class="t-str">"en"</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;</span><span class="t-op">&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;</span><span class="t-op">&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"pay()"</span><span class="t-op">&gt;</span>Pay<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
       '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
-      '<span class="t-kw">async function</span> <span class="t-fn">createPayment</span>() {',
+      '<span class="t-kw">async function</span> <span class="t-fn">pay</span>() {',
       '  <span class="t-kw">const</span> <span class="t-var">payload</span> = {',
       '    <span class="t-prop">partner_id</span>:        <span class="t-str">\'' + esc(M.partner) + '\'</span>,',
       '    <span class="t-prop">transaction_type</span>: <span class="t-str">\'SALE\'</span>,',
-      '    <span class="t-prop">amount</span>:            <span class="t-num">' + esc(v.amount) + '</span>,',
-      '    <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(v.currCode) + '</span>,',
+      '    <span class="t-prop">amount</span>:            <span class="t-num">' + esc(String(Number(v.amount) || 0)) + '</span>,',
+      '    <span class="t-prop">curr_code</span>:         <span class="t-num">' + esc(String(Number(v.currCode) || 764)) + '</span>,',
       '    <span class="t-prop">reference</span>: {',
       '      <span class="t-prop">order_id</span>:        <span class="t-str">\'' + esc(v.orderId) + '\'</span>,',
       '      <span class="t-prop">customer_id</span>:     <span class="t-str">\'' + esc(v.customerId) + '\'</span>,',
@@ -1048,85 +1228,365 @@
       '    }',
       '  };',
       '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-str">\'' + esc(M.evpUrl) + '\'</span>, {',
-      '    <span class="t-prop">method</span>:  <span class="t-str">\'POST\'</span>,',
+      '    <span class="t-prop">method</span>: <span class="t-str">\'POST\'</span>,',
       '    <span class="t-prop">headers</span>: {',
       '      <span class="t-str">\'Content-Type\'</span>: <span class="t-str">\'application/json\'</span>,',
-      '      <span class="t-str">\'x-api-key\'</span>:     <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
+      '      <span class="t-str">\'x-api-key\'</span>:    <span class="t-str">\'' + esc(M.apiKey) + '\'</span>',
       '    },',
       '    <span class="t-prop">body</span>: <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">payload</span>)',
       '  });',
-      '  <span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
-      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'result\'</span>).<span class="t-prop">textContent</span>',
-      '    = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-var">data</span>, <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span>',
+      '    = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
       '}',
       '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
     ].join('\n');
   }
 
+  function genNodejsStatus(v) {
+    var base = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">getPaymentStatus</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">getPaymentStatus</span>();'
+    ].join('\n');
+  }
+
+  function genJsStatus(v) {
+    var base = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '  <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '});',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genPythonStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '',
+      '<span class="t-var">payment_id</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(base) + '"</span> + <span class="t-var">payment_id</span>',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>={<span class="t-str">"x-terminal-id"</span>: <span class="t-str">"' + esc(M.terminal) + '"</span>})',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genCsharpStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-terminal-id"</span>, <span class="t-str">"' + esc(M.terminal) + '"</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>;',
+      '<span class="t-kw">var</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">GetAsync</span>(<span class="t-var">url</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCppStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o status status.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>;',
+      '    <span class="t-type">std::string</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-terminal-id: ' + esc(M.terminal) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>, <span class="t-var">url</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPGET</span>, <span class="t-num">1L</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>, <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>, &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genPhpStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-var">$url</span> = <span class="t-str">\'' + u + '\'</span> . <span class="t-var">$paymentId</span>;',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-var">$url</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [<span class="t-str">\'x-terminal-id: ' + esc(M.terminal) + '\'</span>]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">echo</span> <span class="t-var">$response</span>;'
+    ].join('\n');
+  }
+
+  function genHtmlStatus(v) {
+    var u = esc(M.proxyUrl + '/api/payments/');
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span><span class="t-op">&gt;&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"loadStatus()"</span><span class="t-op">&gt;</span>Get status<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">loadStatus</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + u + '\'</span> + <span class="t-var">paymentId</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-terminal-id\'</span>: <span class="t-str">\'' + esc(M.terminal) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span> = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  function genNodejsEvpStatus(v) {
+    var base = esc(evpBasePath());
+    return [
+      '<span class="t-cmt">// npm install axios</span>',
+      '<span class="t-kw">const</span> <span class="t-var">axios</span> = <span class="t-fn">require</span>(<span class="t-str">\'axios\'</span>);',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">async function</span> <span class="t-fn">getPaymentStatus</span>() {',
+      '  <span class="t-kw">const</span> { <span class="t-var">data</span> } = <span class="t-kw">await</span> <span class="t-var">axios</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);',
+      '}',
+      '',
+      '<span class="t-fn">getPaymentStatus</span>();'
+    ].join('\n');
+  }
+
+  function genJsEvpStatus(v) {
+    var base = esc(evpBasePath());
+    return [
+      '<span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + base + '\'</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '  <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '});',
+      '<span class="t-kw">const</span> <span class="t-var">data</span> = <span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>();',
+      '<span class="t-var">console</span>.<span class="t-fn">log</span>(<span class="t-var">data</span>);'
+    ].join('\n');
+  }
+
+  function genPythonEvpStatus(v) {
+    var base = evpBasePath();
+    return [
+      '<span class="t-cmt"># pip install requests</span>',
+      '<span class="t-kw">import</span> <span class="t-var">requests</span>',
+      '',
+      '<span class="t-var">payment_id</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>',
+      '<span class="t-var">url</span> = <span class="t-str">"' + esc(base) + '"</span> + <span class="t-var">payment_id</span>',
+      '',
+      '<span class="t-var">response</span> = <span class="t-var">requests</span>.<span class="t-fn">get</span>(<span class="t-var">url</span>, <span class="t-prop">headers</span>={<span class="t-str">"x-api-key"</span>: <span class="t-str">"' + esc(M.apiKey) + '"</span>})',
+      '<span class="t-fn">print</span>(<span class="t-var">response</span>.<span class="t-fn">json</span>())'
+    ].join('\n');
+  }
+
+  function genCsharpEvpStatus(v) {
+    var u = esc(evpBasePath());
+    return [
+      '<span class="t-kw">using</span> <span class="t-type">System</span>.<span class="t-type">Net</span>.<span class="t-type">Http</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">client</span> = <span class="t-kw">new</span> <span class="t-type">HttpClient</span>();',
+      '<span class="t-var">client</span>.<span class="t-prop">DefaultRequestHeaders</span>.<span class="t-fn">Add</span>(<span class="t-str">"x-api-key"</span>, <span class="t-str">"' + esc(M.apiKey) + '"</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>;',
+      '<span class="t-kw">var</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '',
+      '<span class="t-kw">var</span> <span class="t-var">response</span> = <span class="t-kw">await</span> <span class="t-var">client</span>.<span class="t-fn">GetAsync</span>(<span class="t-var">url</span>);',
+      '<span class="t-kw">var</span> <span class="t-var">result</span> = <span class="t-kw">await</span> <span class="t-var">response</span>.<span class="t-prop">Content</span>.<span class="t-fn">ReadAsStringAsync</span>();',
+      '<span class="t-type">Console</span>.<span class="t-fn">WriteLine</span>(<span class="t-var">result</span>);'
+    ].join('\n');
+  }
+
+  function genCppEvpStatus(v) {
+    var u = esc(evpBasePath());
+    return [
+      '<span class="t-cmt">// g++ -std=c++17 -lcurl -o status status.cpp</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;iostream&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;string&gt;</span>',
+      '<span class="t-kw">#include</span> <span class="t-str">&lt;curl/curl.h&gt;</span>',
+      '',
+      '<span class="t-kw">static</span> <span class="t-type">size_t</span> <span class="t-fn">WriteCallback</span>(<span class="t-kw">void</span>* <span class="t-var">c</span>, <span class="t-type">size_t</span> <span class="t-var">s</span>, <span class="t-type">size_t</span> <span class="t-var">n</span>, <span class="t-type">std::string</span>* <span class="t-var">b</span>)',
+      '  { <span class="t-var">b</span>-><span class="t-fn">append</span>((<span class="t-kw">char</span>*)<span class="t-var">c</span>, <span class="t-var">s</span>*<span class="t-var">n</span>); <span class="t-kw">return</span> <span class="t-var">s</span>*<span class="t-var">n</span>; }',
+      '',
+      '<span class="t-type">int</span> <span class="t-fn">main</span>() {',
+      '    <span class="t-type">std::string</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">"{evp_payment_id}"</span>;',
+      '    <span class="t-type">std::string</span> <span class="t-var">url</span> = <span class="t-str">"' + u + '"</span> + <span class="t-var">paymentId</span>;',
+      '    <span class="t-type">CURL</span>* <span class="t-var">curl</span> = <span class="t-fn">curl_easy_init</span>();',
+      '    <span class="t-type">std::string</span> <span class="t-var">resp</span>;',
+      '    <span class="t-kw">if</span> (<span class="t-var">curl</span>) {',
+      '        <span class="t-type">struct curl_slist</span>* <span class="t-var">hdrs</span> = <span class="t-kw">nullptr</span>;',
+      '        <span class="t-var">hdrs</span> = <span class="t-fn">curl_slist_append</span>(<span class="t-var">hdrs</span>, <span class="t-str">"x-api-key: ' + esc(M.apiKey) + '"</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_URL</span>, <span class="t-var">url</span>.<span class="t-fn">c_str</span>());',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPGET</span>, <span class="t-num">1L</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_HTTPHEADER</span>, <span class="t-var">hdrs</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEFUNCTION</span>, <span class="t-var">WriteCallback</span>);',
+      '        <span class="t-fn">curl_easy_setopt</span>(<span class="t-var">curl</span>, <span class="t-type">CURLOPT_WRITEDATA</span>, &<span class="t-var">resp</span>);',
+      '        <span class="t-fn">curl_easy_perform</span>(<span class="t-var">curl</span>);',
+      '        <span class="t-fn">curl_easy_cleanup</span>(<span class="t-var">curl</span>);',
+      '    }',
+      '    <span class="t-type">std::cout</span> <span class="t-op">&lt;&lt;</span> <span class="t-var">resp</span> <span class="t-op">&lt;&lt;</span> <span class="t-type">std::endl</span>;',
+      '    <span class="t-kw">return</span> <span class="t-num">0</span>;',
+      '}'
+    ].join('\n');
+  }
+
+  function genPhpEvpStatus(v) {
+    var u = esc(evpBasePath());
+    return [
+      '<span class="t-op">&lt;?php</span>',
+      '',
+      '<span class="t-var">$paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '<span class="t-var">$url</span> = <span class="t-str">\'' + u + '\'</span> . <span class="t-var">$paymentId</span>;',
+      '',
+      '<span class="t-var">$ch</span> = <span class="t-fn">curl_init</span>(<span class="t-var">$url</span>);',
+      '<span class="t-fn">curl_setopt_array</span>(<span class="t-var">$ch</span>, [',
+      '    <span class="t-type">CURLOPT_RETURNTRANSFER</span> => <span class="t-kw">true</span>,',
+      '    <span class="t-type">CURLOPT_HTTPHEADER</span>     => [<span class="t-str">\'x-api-key: ' + esc(M.apiKey) + '\'</span>]',
+      ']);',
+      '',
+      '<span class="t-var">$response</span> = <span class="t-fn">curl_exec</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">curl_close</span>(<span class="t-var">$ch</span>);',
+      '<span class="t-fn">echo</span> <span class="t-var">$response</span>;'
+    ].join('\n');
+  }
+
+  function genHtmlEvpStatus(v) {
+    var u = esc(evpBasePath());
+    return [
+      '<span class="t-op">&lt;!</span><span class="t-kw">DOCTYPE</span> <span class="t-type">html</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">html</span><span class="t-op">&gt;&lt;</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">meta</span> <span class="t-prop">charset</span>=<span class="t-str">"UTF-8"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">head</span><span class="t-op">&gt;&lt;</span><span class="t-kw">body</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">button</span> <span class="t-prop">onclick</span>=<span class="t-str">"loadStatus()"</span><span class="t-op">&gt;</span>Get status<span class="t-op">&lt;/</span><span class="t-kw">button</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">pre</span> <span class="t-prop">id</span>=<span class="t-str">"r"</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">pre</span><span class="t-op">&gt;</span>',
+      '<span class="t-op">&lt;</span><span class="t-kw">script</span><span class="t-op">&gt;</span>',
+      '<span class="t-kw">async function</span> <span class="t-fn">loadStatus</span>() {',
+      '  <span class="t-kw">const</span> <span class="t-var">paymentId</span> = <span class="t-str" style="color:#fde68a;">\'{evp_payment_id}\'</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">url</span> = <span class="t-str">\'' + u + '\'</span> + <span class="t-var">paymentId</span>;',
+      '  <span class="t-kw">const</span> <span class="t-var">res</span> = <span class="t-kw">await</span> <span class="t-fn">fetch</span>(<span class="t-var">url</span>, {',
+      '    <span class="t-prop">headers</span>: { <span class="t-str">\'x-api-key\'</span>: <span class="t-str">\'' + esc(M.apiKey) + '\'</span> }',
+      '  });',
+      '  <span class="t-var">document</span>.<span class="t-fn">getElementById</span>(<span class="t-str">\'r\'</span>).<span class="t-prop">textContent</span> = <span class="t-type">JSON</span>.<span class="t-fn">stringify</span>(<span class="t-kw">await</span> <span class="t-var">res</span>.<span class="t-fn">json</span>(), <span class="t-kw">null</span>, <span class="t-num">2</span>);',
+      '}',
+      '<span class="t-op">&lt;/</span><span class="t-kw">script</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">body</span><span class="t-op">&gt;&lt;/</span><span class="t-kw">html</span><span class="t-op">&gt;</span>'
+    ].join('\n');
+  }
+
+  function sepCurl(isProxy) {
+    return isProxy
+      ? '\n\n<span class="t-cmt"># ── Get payment status (Gateway) ──</span>\n'
+      : '\n\n<span class="t-cmt"># ── Get payment status (Direct EVP) ──</span>\n';
+  }
+  function sepCode(isProxy) {
+    return isProxy
+      ? '\n\n<span class="t-cmt">// ── Get payment status (Gateway) ──</span>\n'
+      : '\n\n<span class="t-cmt">// ── Get payment status (Direct EVP) ──</span>\n';
+  }
+
   /* plain-text version for copying */
   function rawPayload(v) {
     return {
-      partner_id:       M.partner,
-      transaction_type: 'SALE',
-      amount:           Number(v.amount)   || 0,
-      curr_code:        Number(v.currCode) || 764,
-      reference: {
-        order_id:        v.orderId,
-        customer_id:     v.customerId,
-        transaction_ref: v.txnRef
-      }
+      amount:         v.amount,
+      currCode:       v.currCode,
+      orderId:        v.orderId,
+      customerId:     v.customerId,
+      transactionRef: v.txnRef
     };
   }
 
   function rawNodejs(v) {
     var p = JSON.stringify(rawPayload(v), null, 2);
+    var url = M.proxyUrl + '/api/payments';
     return "const axios = require('axios');\n\nconst payload = " + p + ";\n\n"
       + "async function createPayment() {\n"
       + "  const { data } = await axios.post(\n"
-      + "    '" + M.evpUrl + "',\n"
+      + "    '" + url + "',\n"
       + "    payload,\n"
-      + "    { headers: { 'Content-Type': 'application/json', 'x-api-key': '" + M.apiKey + "' } }\n"
+      + "    { headers: { 'Content-Type': 'application/json', 'x-terminal-id': '" + M.terminal + "' } }\n"
       + "  );\n  console.log(data);\n}\n\ncreatePayment();";
   }
   function rawJs(v) {
     var p = JSON.stringify(rawPayload(v), null, 2);
+    var url = M.proxyUrl + '/api/payments';
     return "const payload = " + p + ";\n\n"
-      + "const res = await fetch('" + M.evpUrl + "', {\n"
+      + "const res = await fetch('" + url + "', {\n"
       + "  method: 'POST',\n"
-      + "  headers: { 'Content-Type': 'application/json', 'x-api-key': '" + M.apiKey + "' },\n"
+      + "  headers: { 'Content-Type': 'application/json', 'x-terminal-id': '" + M.terminal + "' },\n"
       + "  body: JSON.stringify(payload)\n});\n\n"
       + "const data = await res.json();\nconsole.log(data);";
   }
   function rawPython(v) {
-    return "import requests\n\nurl = \"" + M.evpUrl + "\"\n\n"
-      + "headers = {\n    \"Content-Type\": \"application/json\",\n    \"x-api-key\": \"" + M.apiKey + "\"\n}\n\n"
+    var url = M.proxyUrl + '/api/payments';
+    return "import requests\n\nurl = \"" + url + "\"\n\n"
+      + "headers = {\n    \"Content-Type\": \"application/json\",\n    \"x-terminal-id\": \"" + M.terminal + "\"\n}\n\n"
       + "payload = {\n"
-      + "    \"partner_id\": \"" + M.partner + "\",\n"
-      + "    \"transaction_type\": \"SALE\",\n"
-      + "    \"amount\": " + v.amount + ",\n"
-      + "    \"curr_code\": " + v.currCode + ",\n"
-      + "    \"reference\": {\n"
-      + "        \"order_id\": \"" + v.orderId + "\",\n"
-      + "        \"customer_id\": \"" + v.customerId + "\",\n"
-      + "        \"transaction_ref\": \"" + v.txnRef + "\"\n"
-      + "    }\n}\n\n"
+      + "    \"amount\": \"" + v.amount + "\",\n"
+      + "    \"currCode\": \"" + v.currCode + "\",\n"
+      + "    \"orderId\": \"" + v.orderId + "\",\n"
+      + "    \"customerId\": \"" + v.customerId + "\",\n"
+      + "    \"transactionRef\": \"" + v.txnRef + "\"\n}\n\n"
       + "response = requests.post(url, headers=headers, json=payload)\nprint(response.json())";
   }
   function rawCsharp(v) {
-    return "using System.Net.Http;\nusing System.Net.Http.Json;\n\nvar client = new HttpClient();\nclient.DefaultRequestHeaders.Add(\"x-api-key\", \"" + M.apiKey + "\");\n\n"
-      + "var payload = new {\n    partner_id = \"" + M.partner + "\",\n    transaction_type = \"SALE\",\n    amount = " + v.amount + ",\n    curr_code = " + v.currCode + ",\n"
-      + "    reference = new { order_id = \"" + v.orderId + "\", customer_id = \"" + v.customerId + "\", transaction_ref = \"" + v.txnRef + "\" }\n};\n\n"
-      + "var response = await client.PostAsJsonAsync(\"" + M.evpUrl + "\", payload);\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);";
+    var url = M.proxyUrl + '/api/payments';
+    return "using System.Net.Http;\nusing System.Net.Http.Json;\n\nvar client = new HttpClient();\nclient.DefaultRequestHeaders.Add(\"x-terminal-id\", \"" + M.terminal + "\");\n\n"
+      + "var payload = new {\n    amount = \"" + v.amount + "\",\n    currCode = \"" + v.currCode + "\",\n"
+      + "    orderId = \"" + v.orderId + "\",\n    customerId = \"" + v.customerId + "\",\n    transactionRef = \"" + v.txnRef + "\"\n};\n\n"
+      + "var response = await client.PostAsJsonAsync(\"" + url + "\", payload);\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);";
   }
   function rawCpp(v) {
+    var url = M.proxyUrl + '/api/payments';
     return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
-      + '    std::string body = R"({"partner_id":"' + M.partner + '","transaction_type":"SALE","amount":' + v.amount + ',"curr_code":' + v.currCode
-      + ',"reference":{"order_id":"' + v.orderId + '","customer_id":"' + v.customerId + '","transaction_ref":"' + v.txnRef + '"}})"; \n\n'
+      + '    std::string body = R"({"amount":"' + v.amount + '","currCode":"' + v.currCode + '","orderId":"' + v.orderId + '","customerId":"' + v.customerId + '","transactionRef":"' + v.txnRef + '"})"; \n\n'
       + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
       + '        struct curl_slist* hdrs = nullptr;\n'
       + '        hdrs = curl_slist_append(hdrs, "Content-Type: application/json");\n'
-      + '        hdrs = curl_slist_append(hdrs, "x-api-key: ' + M.apiKey + '");\n'
-      + '        curl_easy_setopt(curl, CURLOPT_URL, "' + M.evpUrl + '");\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-terminal-id: ' + M.terminal + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, "' + url + '");\n'
       + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
       + '        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());\n'
       + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
@@ -1135,31 +1595,366 @@
       + '    std::cout << resp << std::endl;\n    return 0;\n}';
   }
   function rawPhp(v) {
-    return "<?php\n\n\$payload = [\n    'partner_id'        => '" + M.partner + "',\n    'transaction_type' => 'SALE',\n    'amount'            => " + v.amount + ",\n    'curr_code'         => " + v.currCode + ",\n"
-      + "    'reference'         => [\n        'order_id'        => '" + v.orderId + "',\n        'customer_id'     => '" + v.customerId + "',\n        'transaction_ref' => '" + v.txnRef + "'\n    ]\n];\n\n"
-      + "\$ch = curl_init('" + M.evpUrl + "');\ncurl_setopt_array(\$ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_POST           => true,\n    CURLOPT_POSTFIELDS     => json_encode(\$payload),\n    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-api-key: " + M.apiKey + "']\n]);\n\n\$response = curl_exec(\$ch);\ncurl_close(\$ch);\nvar_dump(json_decode(\$response, true));";
+    var url = M.proxyUrl + '/api/payments';
+    return "<?php\n\n\$payload = [\n    'amount'         => '" + v.amount + "',\n    'currCode'       => '" + v.currCode + "',\n"
+      + "    'orderId'        => '" + v.orderId + "',\n    'customerId'     => '" + v.customerId + "',\n    'transactionRef' => '" + v.txnRef + "'\n];\n\n"
+      + "\$ch = curl_init('" + url + "');\ncurl_setopt_array(\$ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_POST           => true,\n    CURLOPT_POSTFIELDS     => json_encode(\$payload),\n    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-terminal-id: " + M.terminal + "']\n]);\n\n\$response = curl_exec(\$ch);\ncurl_close(\$ch);\nvar_dump(json_decode(\$response, true));";
   }
   function rawHtml(v) {
+    var url = M.proxyUrl + '/api/payments';
     var p = JSON.stringify(rawPayload(v), null, 4);
-    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"><title>EVP Payment</title></head><body>\n<button onclick="createPayment()">Pay</button>\n<pre id="result"></pre>\n<script>\nasync function createPayment() {\n  const payload = ' + p + ';\n  const res = await fetch("' + M.evpUrl + '", {\n    method: "POST",\n    headers: { "Content-Type": "application/json", "x-api-key": "' + M.apiKey + '" },\n    body: JSON.stringify(payload)\n  });\n  const data = await res.json();\n  document.getElementById("result").textContent = JSON.stringify(data, null, 2);\n}\n<\/script></body></html>';
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="pay()">Pay</button>\n<pre id="r"></pre>\n<script>\nasync function pay() {\n  const res = await fetch("' + url + '", {\n    method: "POST",\n    headers: { "Content-Type": "application/json", "x-terminal-id": "' + M.terminal + '" },\n    body: JSON.stringify(' + p + ')\n  });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
   }
 
+  function rawCurlCreate(v) {
+    var proxyUrl = M.proxyUrl + '/api/payments';
+    var body = JSON.stringify({
+      amount:         v.amount,
+      currCode:       v.currCode,
+      orderId:        v.orderId,
+      customerId:     v.customerId,
+      transactionRef: v.txnRef
+    }, null, 2);
+    var tidLine = M.terminal ? '  -H "x-terminal-id: ' + M.terminal + '" \\\n' : '';
+    return 'curl -X POST ' + proxyUrl + ' \\\n'
+      + '  -H "Content-Type: application/json" \\\n'
+      + tidLine
+      + '  -d \'' + body + '\'';
+  }
+  function rawCurlStatus(v) {
+    var tid = M.terminal ? ' \\\n  -H "x-terminal-id: ' + M.terminal + '"' : '';
+    return 'curl -X GET ' + M.proxyUrl + '/api/payments/{evp_payment_id}' + tid;
+  }
+
+  function rawNodejsStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "const axios = require('axios');\n\nconst paymentId = '{evp_payment_id}';\nconst url = "
+      + JSON.stringify(base) + " + paymentId;\n\nasync function getPaymentStatus() {\n"
+      + "  const { data } = await axios.get(url, { headers: { 'x-terminal-id': '" + M.terminal + "' } });\n"
+      + "  console.log(data);\n}\n\ngetPaymentStatus();\n";
+  }
+  function rawJsStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "const paymentId = '{evp_payment_id}';\nconst url = " + JSON.stringify(base) + " + paymentId;\n\n"
+      + "const res = await fetch(url, { headers: { 'x-terminal-id': '" + M.terminal + "' } });\n"
+      + "const data = await res.json();\nconsole.log(data);\n";
+  }
+  function rawPythonStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return 'import requests\n\npayment_id = "{evp_payment_id}"\nurl = "' + base + '" + payment_id\n\n'
+      + 'response = requests.get(url, headers={"x-terminal-id": "' + M.terminal + '"})\nprint(response.json())\n';
+  }
+  function rawCsharpStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return 'using System.Net.Http;\n\nvar client = new HttpClient();\nclient.DefaultRequestHeaders.Add("x-terminal-id", "' + M.terminal + '");\n'
+      + 'var paymentId = "{evp_payment_id}";\nvar url = "' + base + '" + paymentId;\n\nvar response = await client.GetAsync(url);\n'
+      + 'var result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);\n';
+  }
+  function rawCppStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string paymentId = "{evp_payment_id}";\n'
+      + '    std::string url = "' + base + '" + paymentId;\n'
+      + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-terminal-id: ' + M.terminal + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+  function rawPhpStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return "<?php\n\n$paymentId = '{evp_payment_id}';\n$url = '" + base + "' . $paymentId;\n\n"
+      + "$ch = curl_init($url);\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n"
+      + "    CURLOPT_HTTPHEADER => ['x-terminal-id: " + M.terminal + "']\n]);\n\n"
+      + "$response = curl_exec($ch);\ncurl_close($ch);\necho $response;\n";
+  }
+  function rawHtmlStatus(v) {
+    var base = M.proxyUrl + '/api/payments/';
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="loadStatus()">Get status</button>\n<pre id="r"></pre>\n<script>\nasync function loadStatus() {\n  const paymentId = \'{evp_payment_id}\';\n  const url = ' + JSON.stringify(base) + ' + paymentId;\n  const res = await fetch(url, { headers: { "x-terminal-id": "' + M.terminal + '" } });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
+  }
+
+  function rawEvpPath() {
+    return M.baseUrl.replace(/\/$/, '') + '/v1/terminals/' + M.terminal + '/payments/';
+  }
+
+  function rawCurlDirectCreate(v) {
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 2);
+    return 'curl -X POST ' + M.evpUrl + ' \\\n'
+      + '  -H "Content-Type: application/json" \\\n'
+      + '  -H "x-api-key: ' + M.apiKey + '" \\\n'
+      + '  -d \'' + body + '\'';
+  }
+  function rawCurlDirectStatus(v) {
+    return 'curl -X GET ' + rawEvpPath() + '{evp_payment_id} \\\n'
+      + '  -H "x-api-key: ' + M.apiKey + '"';
+  }
+
+  function rawNodejsDirect(v) {
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 2);
+    return "const axios = require('axios');\n\nconst payload = " + body + ";\n\nasync function createPayment() {\n"
+      + "  const { data } = await axios.post(\n    '" + M.evpUrl + "',\n    payload,\n"
+      + "    { headers: { 'Content-Type': 'application/json', 'x-api-key': '" + M.apiKey + "' } }\n  );\n  console.log(data);\n}\n\ncreatePayment();";
+  }
+  function rawNodejsEvpStatus(v) {
+    var base = rawEvpPath();
+    return "const axios = require('axios');\n\nconst paymentId = '{evp_payment_id}';\nconst url = "
+      + JSON.stringify(base) + " + paymentId;\n\nasync function getPaymentStatus() {\n"
+      + "  const { data } = await axios.get(url, { headers: { 'x-api-key': '" + M.apiKey + "' } });\n"
+      + "  console.log(data);\n}\n\ngetPaymentStatus();\n";
+  }
+
+  function rawJsDirect(v) {
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 2);
+    return 'const payload = ' + body + ';\n\nconst res = await fetch(\'' + M.evpUrl + '\', {\n'
+      + '  method: \'POST\',\n  headers: {\n    \'Content-Type\': \'application/json\',\n    \'x-api-key\': \'' + M.apiKey + '\'\n  },\n  body: JSON.stringify(payload)\n});\n\nconst data = await res.json();\nconsole.log(data);';
+  }
+  function rawJsEvpStatus(v) {
+    var base = rawEvpPath();
+    return "const paymentId = '{evp_payment_id}';\nconst url = " + JSON.stringify(base) + " + paymentId;\n\n"
+      + "const res = await fetch(url, { headers: { 'x-api-key': '" + M.apiKey + "' } });\n"
+      + "const data = await res.json();\nconsole.log(data);\n";
+  }
+
+  function rawPythonDirect(v) {
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 2);
+    return 'import requests\n\nurl = "' + M.evpUrl + '"\npayload = ' + body + '\n\n'
+      + 'response = requests.post(url, json=payload, headers={"x-api-key": "' + M.apiKey + '"})\nprint(response.json())\n';
+  }
+  function rawPythonEvpStatus(v) {
+    var base = rawEvpPath();
+    return 'import requests\n\npayment_id = "{evp_payment_id}"\nurl = "' + base + '" + payment_id\n\n'
+      + 'response = requests.get(url, headers={"x-api-key": "' + M.apiKey + '"})\nprint(response.json())\n';
+  }
+
+  function rawCsharpDirect(v) {
+    return 'using System.Net.Http;\nusing System.Net.Http.Json;\nusing System.Net.Http.Headers;\n\nvar client = new HttpClient();\n'
+      + 'client.DefaultRequestHeaders.Add("x-api-key", "' + M.apiKey + '");\n\n'
+      + 'var payload = new {\n    partner_id = "' + M.partner + '",\n    transaction_type = "SALE",\n'
+      + '    amount = ' + (Number(v.amount) || 0) + ',\n    curr_code = ' + (Number(v.currCode) || 764) + ',\n'
+      + '    reference = new {\n        order_id = "' + v.orderId + '",\n        customer_id = "' + v.customerId + '",\n        transaction_ref = "' + v.txnRef + '"\n    }\n};\n\n'
+      + 'var response = await client.PostAsJsonAsync("' + M.evpUrl + '", payload);\n'
+      + 'var result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);\n';
+  }
+  function rawCsharpEvpStatus(v) {
+    var base = rawEvpPath();
+    return 'using System.Net.Http;\n\nvar client = new HttpClient();\n'
+      + 'client.DefaultRequestHeaders.Add("x-api-key", "' + M.apiKey + '");\n'
+      + 'var paymentId = "{evp_payment_id}";\nvar url = "' + base + '" + paymentId;\n\n'
+      + 'var response = await client.GetAsync(url);\nvar result = await response.Content.ReadAsStringAsync();\nConsole.WriteLine(result);\n';
+  }
+
+  function rawCppDirect(v) {
+    var u = M.evpUrl;
+    var body = '{"partner_id":"' + M.partner + '","transaction_type":"SALE","amount":' + (Number(v.amount) || 0) + ',"curr_code":' + (Number(v.currCode) || 764) + ',"reference":{"order_id":"' + v.orderId + '","customer_id":"' + v.customerId + '","transaction_ref":"' + v.txnRef + '"}}';
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string body = R"(' + body + ')";\n    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "Content-Type: application/json");\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-api-key: ' + M.apiKey + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, "' + u + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+  function rawCppEvpStatus(v) {
+    var base = rawEvpPath();
+    return '#include <iostream>\n#include <string>\n#include <curl/curl.h>\n\nstatic size_t WriteCallback(void* c, size_t s, size_t n, std::string* b) { b->append((char*)c, s*n); return s*n; }\n\nint main() {\n'
+      + '    std::string paymentId = "{evp_payment_id}";\n    std::string url = "' + base + '" + paymentId;\n'
+      + '    CURL* curl = curl_easy_init();\n    std::string resp;\n    if (curl) {\n'
+      + '        struct curl_slist* hdrs = nullptr;\n'
+      + '        hdrs = curl_slist_append(hdrs, "x-api-key: ' + M.apiKey + '");\n'
+      + '        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);\n'
+      + '        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);\n'
+      + '        curl_easy_perform(curl);\n        curl_easy_cleanup(curl);\n    }\n'
+      + '    std::cout << resp << std::endl;\n    return 0;\n}';
+  }
+
+  function rawPhpDirect(v) {
+    var u = M.evpUrl;
+    return "<?php\n\n$payload = [\n    'partner_id' => '" + M.partner + "',\n    'transaction_type' => 'SALE',\n"
+      + "    'amount' => " + (Number(v.amount) || 0) + ",\n    'curr_code' => " + (Number(v.currCode) || 764) + ",\n"
+      + "    'reference' => [\n        'order_id' => '" + v.orderId + "',\n        'customer_id' => '" + v.customerId + "',\n        'transaction_ref' => '" + v.txnRef + "'\n    ]\n];\n\n"
+      + "$ch = curl_init('" + u + "');\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_POST => true,\n"
+      + "    CURLOPT_POSTFIELDS => json_encode($payload),\n    CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-api-key: " + M.apiKey + "']\n]);\n\n"
+      + "$response = curl_exec($ch);\ncurl_close($ch);\nvar_dump(json_decode($response, true));";
+  }
+  function rawPhpEvpStatus(v) {
+    var base = rawEvpPath();
+    return "<?php\n\n$paymentId = '{evp_payment_id}';\n$url = '" + base + "' . $paymentId;\n\n"
+      + "$ch = curl_init($url);\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n"
+      + "    CURLOPT_HTTPHEADER => ['x-api-key: " + M.apiKey + "']\n]);\n\n$response = curl_exec($ch);\ncurl_close($ch);\necho $response;\n";
+  }
+
+  function rawHtmlDirect(v) {
+    var u = M.evpUrl;
+    var body = JSON.stringify({
+      partner_id:       M.partner,
+      transaction_type: 'SALE',
+      amount:           Number(v.amount) || 0,
+      curr_code:        Number(v.currCode) || 764,
+      reference: {
+        order_id:        v.orderId,
+        customer_id:     v.customerId,
+        transaction_ref: v.txnRef
+      }
+    }, null, 4);
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="pay()">Pay</button>\n<pre id="r"></pre>\n<script>\nasync function pay() {\n  const res = await fetch("' + u + '", {\n    method: "POST",\n    headers: { "Content-Type": "application/json", "x-api-key": "' + M.apiKey + '" },\n    body: JSON.stringify(' + body + ')\n  });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
+  }
+  function rawHtmlEvpStatus(v) {
+    var base = rawEvpPath();
+    return '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>\n<button onclick="loadStatus()">Get status</button>\n<pre id="r"></pre>\n<script>\nasync function loadStatus() {\n  const paymentId = \'{evp_payment_id}\';\n  const url = ' + JSON.stringify(base) + ' + paymentId;\n  const res = await fetch(url, { headers: { "x-api-key": "' + M.apiKey + '" } });\n  document.getElementById("r").textContent = JSON.stringify(await res.json(), null, 2);\n}\n<\/script></body></html>';
+  }
+
+  var rawSepGw = '\n\n# --- Get payment status (Gateway) ---\n\n';
+  var rawSepDir = '\n\n# --- Get payment status (Direct EVP) ---\n\n';
+  var rawSepGwJs = '\n\n// --- Get payment status (Gateway) ---\n\n';
+  var rawSepDirJs = '\n\n// --- Get payment status (Direct EVP) ---\n\n';
+
   var rawFns = {
-    nodejs: rawNodejs, js: rawJs, python: rawPython,
-    csharp: rawCsharp, cpp: rawCpp, php: rawPhp, html: rawHtml
-  };
-  var genFns = {
-    nodejs: genNodejs, js: genJs, python: genPython,
-    csharp: genCsharp, cpp: genCpp, php: genPhp, html: genHtml
+    curl: {
+      proxy:  function (v) { return rawCurlCreate(v) + rawSepGw + rawCurlStatus(v); },
+      direct: function (v) { return rawCurlDirectCreate(v) + rawSepDir + rawCurlDirectStatus(v); }
+    },
+    nodejs: {
+      proxy:  function (v) { return rawNodejs(v) + rawSepGwJs + rawNodejsStatus(v); },
+      direct: function (v) { return rawNodejsDirect(v) + rawSepDirJs + rawNodejsEvpStatus(v); }
+    },
+    js: {
+      proxy:  function (v) { return rawJs(v) + rawSepGwJs + rawJsStatus(v); },
+      direct: function (v) { return rawJsDirect(v) + rawSepDirJs + rawJsEvpStatus(v); }
+    },
+    python: {
+      proxy:  function (v) { return rawPython(v) + rawSepGwJs + rawPythonStatus(v); },
+      direct: function (v) { return rawPythonDirect(v) + rawSepDirJs + rawPythonEvpStatus(v); }
+    },
+    csharp: {
+      proxy:  function (v) { return rawCsharp(v) + rawSepGwJs + rawCsharpStatus(v); },
+      direct: function (v) { return rawCsharpDirect(v) + rawSepDirJs + rawCsharpEvpStatus(v); }
+    },
+    cpp: {
+      proxy:  function (v) { return rawCpp(v) + rawSepGwJs + rawCppStatus(v); },
+      direct: function (v) { return rawCppDirect(v) + rawSepDirJs + rawCppEvpStatus(v); }
+    },
+    php: {
+      proxy:  function (v) { return rawPhp(v) + rawSepGwJs + rawPhpStatus(v); },
+      direct: function (v) { return rawPhpDirect(v) + rawSepDirJs + rawPhpEvpStatus(v); }
+    },
+    html: {
+      proxy:  function (v) { return rawHtml(v) + rawSepGwJs + rawHtmlStatus(v); },
+      direct: function (v) { return rawHtmlDirect(v) + rawSepDirJs + rawHtmlEvpStatus(v); }
+    }
   };
 
-  var activeLang = 'nodejs';
+  var genFns = {
+    curl: {
+      proxy:  function (v) { return genCurlCreate(v) + sepCurl(true) + genCurlStatus(v); },
+      direct: function (v) { return genCurlDirectCreate(v) + sepCurl(false) + genCurlDirectStatus(v); }
+    },
+    nodejs: {
+      proxy:  function (v) { return genNodejs(v) + sepCode(true) + genNodejsStatus(v); },
+      direct: function (v) { return genNodejsDirect(v) + sepCode(false) + genNodejsEvpStatus(v); }
+    },
+    js: {
+      proxy:  function (v) { return genJs(v) + sepCode(true) + genJsStatus(v); },
+      direct: function (v) { return genJsDirect(v) + sepCode(false) + genJsEvpStatus(v); }
+    },
+    python: {
+      proxy:  function (v) { return genPython(v) + sepCode(true) + genPythonStatus(v); },
+      direct: function (v) { return genPythonDirect(v) + sepCode(false) + genPythonEvpStatus(v); }
+    },
+    csharp: {
+      proxy:  function (v) { return genCsharp(v) + sepCode(true) + genCsharpStatus(v); },
+      direct: function (v) { return genCsharpDirect(v) + sepCode(false) + genCsharpEvpStatus(v); }
+    },
+    cpp: {
+      proxy:  function (v) { return genCpp(v) + sepCode(true) + genCppStatus(v); },
+      direct: function (v) { return genCppDirect(v) + sepCode(false) + genCppEvpStatus(v); }
+    },
+    php: {
+      proxy:  function (v) { return genPhp(v) + sepCode(true) + genPhpStatus(v); },
+      direct: function (v) { return genPhpDirect(v) + sepCode(false) + genPhpEvpStatus(v); }
+    },
+    html: {
+      proxy:  function (v) { return genHtml(v) + sepCode(true) + genHtmlStatus(v); },
+      direct: function (v) { return genHtmlDirect(v) + sepCode(false) + genHtmlEvpStatus(v); }
+    }
+  };
+
+  var activeLang = 'curl';
+  var activeCodeEx = 'proxy';
+
+  function setCodeExMode(mode) {
+    activeCodeEx = mode;
+    document.querySelectorAll('[data-code-ex]').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-code-ex') === mode);
+    });
+    ['curl','nodejs','js','python','csharp','cpp','php','html'].forEach(function (lang) {
+      var p = document.getElementById('code-' + lang + '-proxy');
+      var d = document.getElementById('code-' + lang + '-direct');
+      if (p) p.style.display = mode === 'proxy' ? '' : 'none';
+      if (d) d.style.display = mode === 'direct' ? '' : 'none';
+    });
+  }
 
   function updateCode() {
     var v = vals();
-    Object.keys(genFns).forEach(function (lang) {
-      var el = document.getElementById('code-' + lang);
-      if (el) el.innerHTML = genFns[lang](v);
+    ['curl','nodejs','js','python','csharp','cpp','php','html'].forEach(function (lang) {
+      var pe = document.getElementById('code-' + lang + '-proxy');
+      var de = document.getElementById('code-' + lang + '-direct');
+      var g = genFns[lang];
+      if (g && pe) pe.innerHTML = g.proxy(v);
+      if (g && de) de.innerHTML = g.direct(v);
     });
   }
 
@@ -1175,13 +1970,22 @@
     });
   });
 
+  document.querySelectorAll('[data-code-ex]').forEach(function (st) {
+    st.addEventListener('click', function () {
+      setCodeExMode(st.getAttribute('data-code-ex'));
+    });
+  });
+
   /* copy buttons */
   document.querySelectorAll('.code-copy-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var targetId = btn.getAttribute('data-target');
       var lang = targetId ? targetId.replace('code-', '') : activeLang;
       var v = vals();
-      var raw = rawFns[lang] ? rawFns[lang](v) : '';
+      var raw = '';
+      if (rawFns[lang] && rawFns[lang][activeCodeEx]) {
+        raw = rawFns[lang][activeCodeEx](v);
+      }
       if (!raw) return;
       navigator.clipboard.writeText(raw).then(function () {
         btn.classList.add('copied');

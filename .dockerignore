@@ -4,7 +4,6 @@ yarn-debug.log
 yarn-error.log
 .git
 .gitignore
-.env
 .DS_Store
 Dockerfile
 README*
