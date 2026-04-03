@@ -1,8 +1,10 @@
 require('dotenv').config();
 
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const session = require('express-session');
 const axios = require('axios');
 const {
   getPool,
@@ -37,10 +39,92 @@ app.use(
 );
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get('/', (req, res) => res.redirect('/payment'));
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
+const sessionSecret =
+  process.env.SESSION_SECRET || 'dev-only-change-SESSION_SECRET';
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  console.warn('WARNING: Set SESSION_SECRET in production for stable signed cookies.');
+}
+
+app.use(
+  session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    }
+  })
+);
+
+function timingSafeEqualString(a, b) {
+  const sa = String(a || '');
+  const sb = String(b || '');
+  if (sa.length !== sb.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(sa, 'utf8'), Buffer.from(sb, 'utf8'));
+}
+
+function requireAuth(req, res, next) {
+  if (req.session && req.session.authenticated) return next();
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ ok: false, message: 'Unauthorized' });
+  }
+  return res.redirect('/?error=1');
+}
+
+// Avoid noisy 404 for browser favicon request
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
+app.get('/', async (req, res) => {
+  try {
+    if (req.session && req.session.authenticated) {
+      return res.redirect('/payment');
+    }
+    const loginErrorBad = req.query.error === 'bad';
+    const loginError =
+      loginErrorBad || req.query.error === '1' || req.query.error === 'unauthorized';
+    res.render('index', { loginError, loginErrorBad });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Render error');
+  }
+});
+
+app.post('/login', (req, res) => {
+  const expectedUser = String(process.env.APP_LOGIN_USER || '').trim();
+  const expectedPass = String(process.env.APP_LOGIN_PASSWORD || '');
+  if (!expectedUser || !expectedPass) {
+    console.error('Set APP_LOGIN_USER and APP_LOGIN_PASSWORD in .env');
+    return res.status(500).send('Login is not configured.');
+  }
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+  const userOk = timingSafeEqualString(username, expectedUser);
+  const passOk = timingSafeEqualString(password, expectedPass);
+  if (userOk && passOk) {
+    req.session.authenticated = true;
+    return res.redirect('/payment');
+  }
+  return res.redirect('/?error=bad');
+});
+
+app.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) console.error(err);
+    res.redirect('/');
+  });
+});
 
 // Debug helper: list registered routes (dev only)
-app.get('/__routes', (req, res) => {
+app.get('/__routes', requireAuth, (req, res) => {
   try {
     const stack = (app.router && app.router.stack) || (app._router && app._router.stack) || [];
     const routes = [];
@@ -98,7 +182,7 @@ function mergeMerchantIntoDropdown(rows, merchant) {
   return [merchant, ...list];
 }
 
-app.get('/payment', async (req, res) => {
+app.get('/payment', requireAuth, async (req, res) => {
   try {
     const merchant = await tryGetMerchant();
     const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
@@ -109,7 +193,7 @@ app.get('/payment', async (req, res) => {
   }
 });
 
-app.get('/payment-v2', async (req, res) => {
+app.get('/payment-v2', requireAuth, async (req, res) => {
   try {
     const merchant = await tryGetMerchant();
     const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
@@ -120,7 +204,7 @@ app.get('/payment-v2', async (req, res) => {
   }
 });
 
-app.get('/payment-status', async (req, res) => {
+app.get('/payment-status', requireAuth, async (req, res) => {
   try {
     const pool = await getPool();
     const payments = await pool
@@ -137,7 +221,7 @@ app.get('/payment-status', async (req, res) => {
   }
 });
 
-app.get('/evp-payment-report', async (req, res) => {
+app.get('/evp-payment-report', requireAuth, async (req, res) => {
   try {
     const pool = await getPool();
     const result = await pool.request().query('SELECT TOP 50 * FROM Tbl_EVPPayment ORDER BY Log_ID DESC');
@@ -149,7 +233,7 @@ app.get('/evp-payment-report', async (req, res) => {
   }
 });
 
-app.get('/loadtest', async (req, res) => {
+app.get('/loadtest', requireAuth, async (req, res) => {
   try {
     const merchant = await tryGetMerchant();
     res.render('loadtest', { merchant });
@@ -159,10 +243,23 @@ app.get('/loadtest', async (req, res) => {
   }
 });
 
-app.get('/webhook', async (req, res) => {
+app.get('/webhook', requireAuth, async (req, res) => {
   try {
+    let paymentRows = [];
+    try {
+      const pool = await getPool();
+      const pr = await pool
+        .request()
+        .query(
+          'SELECT TOP 100 Log_ID, Ref_TRN, Ref_Order_ID, Ref_Customer_ID, Res_Payment_ID, Res_Status, CreatedAtUtc FROM Tbl_EVPPayment ORDER BY Log_ID DESC'
+        );
+      paymentRows = pr.recordset || [];
+    } catch (e) {
+      console.error('webhook page — payment list:', e.message);
+    }
     const merchant = await tryGetMerchant();
-    res.render('webhook', { merchant });
+    const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+    res.render('webhook', { merchant, payments: paymentRows, appUrl });
   } catch (err) {
     console.error(err);
     res.status(500).send('Render error');
@@ -170,7 +267,7 @@ app.get('/webhook', async (req, res) => {
 });
 
 // Admin: merchant list (CRU)
-app.get('/admin/merchants', async (req, res) => {
+app.get('/admin/merchants', requireAuth, async (req, res) => {
   try {
     const merchants = await listMerchants(500);
     const merchant = await tryGetMerchant();
@@ -182,7 +279,7 @@ app.get('/admin/merchants', async (req, res) => {
 });
 
 // Admin: view current merchant config
-app.get('/admin/merchant', async (req, res) => {
+app.get('/admin/merchant', requireAuth, async (req, res) => {
   try {
     const rawList = await listMerchants(200);
     const picked = await getMerchantByKey({
@@ -200,7 +297,7 @@ app.get('/admin/merchant', async (req, res) => {
 });
 
 // UI: simulate webhook payload
-app.get('/simulate/webhook', async (req, res) => {
+app.get('/simulate/webhook', requireAuth, async (req, res) => {
   try {
     res.redirect('/webhook');
   } catch (err) {
@@ -210,7 +307,7 @@ app.get('/simulate/webhook', async (req, res) => {
 });
 
 // Admin: set active merchant config (store into Tbl_EVPMerchant)
-app.post('/admin/merchant', async (req, res) => {
+app.post('/admin/merchant', requireAuth, async (req, res) => {
   try {
     await setActiveMerchant({
       BASE_URL: req.body.baseUrl,
@@ -230,7 +327,7 @@ app.post('/admin/merchant', async (req, res) => {
 });
 
 // Admin: save merchant from list popup (AJAX)
-app.post('/admin/merchants/save', async (req, res) => {
+app.post('/admin/merchants/save', requireAuth, async (req, res) => {
   try {
     await upsertMerchant({
       BASE_URL: req.body.baseUrl,
@@ -253,7 +350,7 @@ app.post('/admin/merchants/save', async (req, res) => {
 });
 
 // Admin: make specific merchant row active (CRU list action)
-app.post('/admin/merchants/:terminalId/:merchantId/:branchId/activate', async (req, res) => {
+app.post('/admin/merchants/:terminalId/:merchantId/:branchId/activate', requireAuth, async (req, res) => {
   try {
     const row = await getMerchantByKey({
       Terminal_ID: req.params.terminalId,
@@ -273,7 +370,7 @@ app.post('/admin/merchants/:terminalId/:merchantId/:branchId/activate', async (r
 });
 
 // Admin: toggle IsActive for a single merchant row (AJAX)
-app.post('/admin/merchants/:terminalId/:merchantId/:branchId/toggle-status', async (req, res) => {
+app.post('/admin/merchants/:terminalId/:merchantId/:branchId/toggle-status', requireAuth, async (req, res) => {
   try {
     const isActive = req.body.isActive === true || req.body.isActive === 1 || req.body.isActive === '1';
     const result = await toggleMerchantStatus(
@@ -291,7 +388,7 @@ app.post('/admin/merchants/:terminalId/:merchantId/:branchId/toggle-status', asy
 });
 
 // Admin: archive (soft-delete) merchant row → moves to Tbl_EVPMerchant_Deleted
-app.post('/admin/merchants/:terminalId/:merchantId/:branchId/delete', async (req, res) => {
+app.post('/admin/merchants/:terminalId/:merchantId/:branchId/delete', requireAuth, async (req, res) => {
   try {
     await archiveMerchant(
       req.params.terminalId,
@@ -524,7 +621,7 @@ async function runEvpWebhookHandler(req, res, buildBody) {
 }
 
 // Create Payment API
-app.post('/api/payments', async (req, res) => {
+app.post('/api/payments', requireAuth, async (req, res) => {
   const {
     amount,
     currCode,
@@ -645,7 +742,7 @@ app.post('/api/payments', async (req, res) => {
 });
 
 // Get Payment Status API
-app.get('/api/payments/:evpPaymentId', async (req, res) => {
+app.get('/api/payments/:evpPaymentId', requireAuth, async (req, res) => {
   const { evpPaymentId } = req.params;
 
   try {

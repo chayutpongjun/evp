@@ -1,384 +1,327 @@
 <!doctype html>
-<html lang="en">
+<html lang="th">
   <head>
     <meta charset="utf-8" />
-    <title>EVP Gateway Demo</title>
+    <title>เข้าสู่ระบบ · EVP Gateway</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --bg: #0b1020;
+        --stroke: rgba(148, 163, 184, 0.14);
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --brand1: #4f46e5;
+        --brand2: #22c55e;
+        --bad: #f87171;
+        --card: rgba(2, 6, 23, 0.72);
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         margin: 0;
-        padding: 0;
-        background: #0f172a;
-        color: #e5e7eb;
+        min-height: 100vh;
+        font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        overflow-x: hidden;
       }
-      .container {
-        max-width: 1024px;
-        margin: 0 auto;
-        padding: 24px 16px 64px;
+      .bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background:
+          radial-gradient(1200px 700px at 10% -10%, rgba(79, 70, 229, 0.38), transparent 60%),
+          radial-gradient(900px 500px at 85% 0%, rgba(34, 197, 94, 0.22), transparent 55%),
+          radial-gradient(800px 600px at 45% 110%, rgba(14, 165, 233, 0.12), transparent 55%),
+          var(--bg);
       }
-      h1 {
-        font-size: 28px;
-        margin-bottom: 8px;
+      .bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 70%);
+        pointer-events: none;
       }
-      h2 {
-        margin-top: 32px;
-        margin-bottom: 12px;
-        font-size: 20px;
+      .wrap {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px 48px;
+      }
+      .panel {
+        width: 100%;
+        max-width: 440px;
+      }
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+      .logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--brand1), var(--brand2));
+        box-shadow:
+          0 0 28px rgba(79, 70, 229, 0.45),
+          0 8px 24px rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .logo svg {
+        width: 26px;
+        height: 26px;
+      }
+      .brand-text h1 {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      .brand-text p {
+        margin: 4px 0 0;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        font-weight: 500;
       }
       .card {
-        background: #020617;
+        border-radius: 20px;
+        border: 1px solid var(--stroke);
+        background: var(--card);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow:
+          0 24px 80px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        padding: 28px 26px 24px;
+      }
+      .card-head {
+        margin-bottom: 22px;
+      }
+      .card-head h2 {
+        margin: 0 0 6px;
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .card-head span {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .alert {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 11px 13px;
         border-radius: 12px;
-        padding: 16px 18px;
-        border: 1px solid #1f2937;
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.7);
+        margin-bottom: 18px;
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        border: 1px solid rgba(248, 113, 113, 0.25);
+        background: rgba(127, 29, 29, 0.22);
+        color: #fecaca;
+      }
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 1px;
+        opacity: 0.9;
+      }
+      .field {
+        margin-bottom: 16px;
+      }
+      .field:last-of-type {
+        margin-bottom: 0;
       }
       label {
         display: block;
-        font-size: 13px;
-        color: #9ca3af;
-        margin-bottom: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+        margin-bottom: 7px;
+      }
+      .input-wrap {
+        position: relative;
+      }
+      .input-wrap svg {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        color: rgba(148, 163, 184, 0.55);
+        pointer-events: none;
       }
       input {
         width: 100%;
-        padding: 8px 10px;
-        font-size: 14px;
-        border-radius: 8px;
-        border: 1px solid #374151;
-        background: #020617;
-        color: #e5e7eb;
-        box-sizing: border-box;
+        padding: 12px 14px 12px 44px;
+        font-size: 0.9375rem;
+        font-family: inherit;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(2, 6, 23, 0.65);
+        color: var(--text);
+        outline: none;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      input::placeholder {
+        color: rgba(148, 163, 184, 0.45);
       }
       input:focus {
-        outline: 2px solid #4f46e5;
-        outline-offset: 1px;
-        border-color: transparent;
+        border-color: rgba(79, 70, 229, 0.55);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
       }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 12px 16px;
-      }
-      button {
-        margin-top: 12px;
-        padding: 9px 16px;
-        border-radius: 999px;
-        border: none;
-        background: linear-gradient(135deg, #4f46e5, #22c55e);
-        color: white;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 14px;
-      }
-      button:disabled {
-        opacity: 0.5;
-        cursor: progress;
-      }
-      table {
+      .btn {
         width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-      }
-      th,
-      td {
-        border-bottom: 1px solid #111827;
-        padding: 6px 8px;
-        text-align: left;
-        white-space: nowrap;
-      }
-      th {
-        font-weight: 600;
-        color: #9ca3af;
-        background: #020617;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-      tbody tr:nth-child(odd) {
-        background: #020617;
-      }
-      tbody tr:nth-child(even) {
-        background: #030712;
-      }
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 8px;
+        margin-top: 22px;
+        padding: 13px 18px;
+        border: none;
         border-radius: 999px;
-        font-size: 11px;
-        background: #1f2937;
-        color: #bbf7d0;
-      }
-      .toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin: 18px 0 10px;
-      }
-      .btn-secondary {
-        padding: 7px 12px;
-        border-radius: 999px;
-        border: 1px solid #334155;
-        background: #0b1224;
-        color: #e5e7eb;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 13px;
-      }
-      .btn-secondary:hover {
-        border-color: #475569;
-      }
-      .status-wrap {
-        display: inline-flex;
-        flex-direction: column;
-        gap: 4px;
-        min-width: 140px;
-      }
-      .progress {
-        height: 8px;
-        border-radius: 999px;
-        background: #0b1224;
-        border: 1px solid #111827;
-        overflow: hidden;
-      }
-      .progress > div {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #4f46e5, #22c55e);
-      }
-      .status-line {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        font-size: 11px;
-        color: #9ca3af;
-      }
-      .status-line strong {
-        color: #e5e7eb;
+        font-family: inherit;
+        font-size: 0.9375rem;
         font-weight: 700;
+        cursor: pointer;
+        color: #fff;
+        background: linear-gradient(135deg, var(--brand1), var(--brand2));
+        box-shadow:
+          0 4px 20px rgba(79, 70, 229, 0.35),
+          0 2px 8px rgba(0, 0, 0, 0.2);
+        transition:
+          transform 0.12s,
+          box-shadow 0.12s,
+          filter 0.12s;
       }
-      .scroll-x {
-        overflow-x: auto;
+      .btn:hover {
+        filter: brightness(1.06);
+        box-shadow:
+          0 6px 28px rgba(79, 70, 229, 0.45),
+          0 2px 10px rgba(0, 0, 0, 0.25);
       }
-      pre {
-        background: #020617;
-        padding: 8px 10px;
-        border-radius: 8px;
-        font-size: 12px;
-        max-height: 260px;
-        overflow: auto;
-        border: 1px solid #111827;
+      .btn:active {
+        transform: scale(0.98);
       }
-      .two-col {
-        display: grid;
-        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-        gap: 16px;
+      .foot {
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(148, 163, 184, 0.1);
+        text-align: center;
+        font-size: 0.6875rem;
+        color: rgba(148, 163, 184, 0.55);
+        line-height: 1.5;
       }
-      @media (max-width: 768px) {
-        .two-col {
-          grid-template-columns: minmax(0, 1fr);
-        }
+      .foot code {
+        font-size: 0.8125rem;
+        color: rgba(148, 163, 184, 0.75);
+        background: rgba(2, 6, 23, 0.5);
+        padding: 2px 6px;
+        border-radius: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>EVP Gateway Demo (Node.js)</h1>
-      <p style="color:#9ca3af;font-size:13px;margin-bottom:20px;">
-        สร้าง Payment ผ่าน EVP, เก็บลง <code>Tbl_EVPPayment</code> และรับ Webhook ลง <code>Tbl_EVPHookLogs</code>.
-      </p>
-      <p style="color:#9ca3af;font-size:13px;margin:-10px 0 18px;">
-        Merchant Config: <a href="/admin/merchant" style="color:#a5b4fc;text-decoration:none;">ตั้งค่า Tbl_EVPMerchant</a>
-        <% if (!merchant) { %>
-          <span style="color:#fca5a5;">(ยังไม่มี Active Merchant ใน DB)</span>
-        <% } %>
-      </p>
-      <p style="color:#9ca3af;font-size:13px;margin:-8px 0 18px;">
-        Webhook Simulator: <a href="/simulate/webhook" style="color:#a5b4fc;text-decoration:none;">จำลอง webhook</a>
-      </p>
+    <div class="bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="panel">
+        <div class="brand-row">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>Visto · EVP Gateway</h1>
+            <p>Payment Demo · Webhook · Admin</p>
+          </div>
+        </div>
 
-      <div class="two-col">
-        <div>
-          <h2>สร้าง Payment</h2>
-          <div class="card">
-            <form id="createForm">
-              <div class="grid">
-                <div>
-                  <label>Amount</label>
-                  <input name="amount" type="number" value="300" required />
-                </div>
-                <div>
-                  <label>Currency Code</label>
-                  <input name="currCode" type="number" value="764" required />
-                  <div style="color:#64748b;font-size:12px;margin-top:4px;">แนะนำ THB = 764</div>
-                </div>
-                <div>
-                  <label>Order ID</label>
-                  <input name="orderId" value="ORD-TEST-001" required />
-                </div>
-                <div>
-                  <label>Customer ID</label>
-                  <input name="customerId" value="CUST-003" required />
-                </div>
-                <div>
-                  <label>Transaction Ref</label>
-                  <input name="transactionRef" value="TXN-TEST-003" required />
-                  <div style="color:#64748b;font-size:12px;margin-top:4px;">(ใช้เป็น Ref TRN ด้วย)</div>
-                </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>เข้าสู่ระบบ</h2>
+            <span>ใช้บัญชีที่กำหนดในระบบเพื่อเข้าใช้งานแดชบอร์ด</span>
+          </div>
+
+          <% if (typeof loginError !== 'undefined' && loginError) { %>
+            <div class="alert" role="alert">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>
+                <% if (loginErrorBad) { %>
+                  ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่
+                <% } else { %>
+                  กรุณาเข้าสู่ระบบก่อนใช้งานหน้านั้น
+                <% } %>
+              </span>
+            </div>
+          <% } %>
+
+          <form id="loginForm" method="post" action="/login" autocomplete="on">
+            <div class="field">
+              <label for="loginUser">ชื่อผู้ใช้</label>
+              <div class="input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                <input
+                  name="username"
+                  id="loginUser"
+                  autocomplete="username"
+                  placeholder="username"
+                  required
+                />
               </div>
-              <button type="submit">สร้าง Payment</button>
-            </form>
-            <div style="margin-top:10px;">
-              <label>ผลลัพธ์ล่าสุด</label>
-              <pre id="createResult">ยังไม่มี</pre>
             </div>
-          </div>
-        </div>
-
-        <div>
-          <h2>ตรวจสอบสถานะ Payment</h2>
-          <div class="card">
-            <form id="statusForm">
-              <label>EVP Payment ID</label>
-              <input name="evpPaymentId" id="statusEvpId" required />
-              <button type="submit">ดึงสถานะ</button>
-            </form>
-            <div style="margin-top:10px;">
-              <label>ผลลัพธ์ล่าสุด</label>
-              <pre id="statusResult">ยังไม่มี</pre>
+            <div class="field">
+              <label for="loginPass">รหัสผ่าน</label>
+              <div class="input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <input
+                  name="password"
+                  id="loginPass"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+            <button type="submit" class="btn" id="loginBtn">เข้าสู่ระบบ</button>
+          </form>
 
-      <h2>รายการล่าสุด (จาก SQL Server)</h2>
-      <div class="toolbar">
-        <div style="color:#9ca3af;font-size:13px;">
-          แสดง TOP 50 ล่าสุดจาก <code>Tbl_EVPPayment</code>
+          <p class="foot">
+            ค่าเริ่มต้นจาก <code>APP_LOGIN_USER</code> และ <code>APP_LOGIN_PASSWORD</code> ใน <code>.env</code>
+          </p>
         </div>
-        <button class="btn-secondary" type="button" id="refreshBtn">Refresh</button>
-      </div>
-      <div class="card scroll-x">
-        <table>
-          <thead>
-            <tr>
-              <th>Log_ID</th>
-              <th>Terminal_ID</th>
-              <th>Partner_ID</th>
-              <th>Merchant_ID</th>
-              <th>Ref_TRN</th>
-              <th>Res_Payment_ID</th>
-              <th>Res_Status</th>
-              <th>Amount</th>
-              <th>Order</th>
-              <th>Paid At (UTC)</th>
-              <th>Created (UTC)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (logs && logs.length) { %>
-              <% logs.forEach(function (row) { %>
-                <%
-                  const rawStatus = (row.Res_Status || '').toString();
-                  const s = rawStatus.toLowerCase();
-                  let pct = null;
-                  if (s === 'created') pct = 0;
-                  else if (s === 'submitted') pct = 50;
-                  else if (s === 'paid' || s === 'completed') pct = 100;
-                  const pctLabel = pct === null ? 'N/A' : String(pct);
-                %>
-                <tr>
-                  <td><%= row.Log_ID %></td>
-                  <td><%= row.Terminal_ID || '' %></td>
-                  <td><%= row.Partner_ID || '' %></td>
-                  <td><%= row.Merchant_ID || '' %></td>
-                  <td><%= row.Ref_TRN || '' %></td>
-                  <td><%= row.Res_Payment_ID || '' %></td>
-                  <td>
-                    <div class="status-wrap">
-                      <div class="status-line">
-                        <strong><%= pctLabel %></strong>
-                        <span class="badge"><%= row.Res_Status || 'N/A' %></span>
-                      </div>
-                      <div class="progress" title="0 = created, 50 = submitted, 100 = PAID">
-                        <div style="width:<%= pct === null ? 0 : pct %>%"></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td><%= row.Amount %></td>
-                  <td><%= row.Ref_Order_ID || '' %></td>
-                  <td><%= row.Res_Paid_at ? (row.Res_Paid_at.toISOString ? row.Res_Paid_at.toISOString() : row.Res_Paid_at) : '' %></td>
-                  <td><%= row.CreatedAtUtc ? row.CreatedAtUtc.toISOString ? row.CreatedAtUtc.toISOString() : row.CreatedAtUtc : '' %></td>
-                </tr>
-              <% }) %>
-            <% } else { %>
-              <tr>
-                <td colspan="12">ยังไม่มีข้อมูล</td>
-              </tr>
-            <% } %>
-          </tbody>
-        </table>
       </div>
     </div>
-
-    <script>
-      const createForm = document.getElementById('createForm');
-      const createResult = document.getElementById('createResult');
-      const statusForm = document.getElementById('statusForm');
-      const statusResult = document.getElementById('statusResult');
-      const statusEvpId = document.getElementById('statusEvpId');
-
-      createForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(createForm);
-        const payload = Object.fromEntries(formData.entries());
-
-        createForm.querySelector('button').disabled = true;
-        createResult.textContent = 'กำลังส่ง...';
-
-        try {
-          const res = await fetch('/api/payments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const json = await res.json();
-          createResult.textContent = JSON.stringify(json, null, 2);
-          if (json.evp_payment_id) {
-            statusEvpId.value = json.evp_payment_id;
-          }
-        } catch (err) {
-          createResult.textContent = 'Error: ' + err.message;
-        } finally {
-          createForm.querySelector('button').disabled = false;
-        }
-      });
-
-      statusForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const evpPaymentId = statusEvpId.value.trim();
-        if (!evpPaymentId) return;
-
-        statusForm.querySelector('button').disabled = true;
-        statusResult.textContent = 'กำลังดึงข้อมูล...';
-
-        try {
-          const res = await fetch('/api/payments/' + encodeURIComponent(evpPaymentId));
-          const json = await res.json();
-          statusResult.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          statusResult.textContent = 'Error: ' + err.message;
-        } finally {
-          statusForm.querySelector('button').disabled = false;
-        }
-      });
-
-      document.getElementById('refreshBtn').addEventListener('click', () => {
-        window.location.reload();
-      });
-    </script>
   </body>
 </html>
-

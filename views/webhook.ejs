@@ -9,6 +9,8 @@
 <%
   var W_TERMINAL = merchant ? merchant.Terminal_ID : 'TID001';
   var W_API_KEY  = merchant ? merchant.ApiKey      : 'YOUR_API_KEY';
+  var W_APP_URL  = (typeof appUrl !== 'undefined' && appUrl) ? String(appUrl).replace(/\/$/, '') : 'http://localhost:3000';
+  var W_SAMPLE_PID = (payments && payments.length && payments[0].Res_Payment_ID) ? payments[0].Res_Payment_ID : '';
 %>
 
 <style>
@@ -204,17 +206,27 @@
         </div>
       </div>
       <div class="bd">
+        <div class="muted" style="font-size:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px;border:1px solid #1f2937;background:#080e1a;line-height:1.55;">
+          <strong style="color:#e5e7eb;">ทดสอบจากเบราว์เซอร์:</strong> ไม่มี <code>webhook-signature</code> — ตั้ง <code>SKIP_WEBHOOK_VERIFY=true</code> ใน <code>.env</code> หรือยังไม่ใส่ <code>EVP_WEBHOOK_PUBLIC_KEY_B64</code><br />
+          <strong style="color:#e5e7eb;">PowerShell:</strong> ใช้ <code>curl.exe</code> (ไม่ใช่ <code>curl</code> เพราะเป็น alias ของ Invoke-WebRequest) และส่ง body จากไฟล์ด้วย <code>--data-binary &quot;@body.json&quot;</code>
+        </div>
         <div class="grid">
+          <% if (payments && payments.length) { %>
+          <div style="grid-column: 1 / -1;">
+            <label>เลือก Payment จากรายการล่าสุด</label>
+            <input id="paymentPick" list="webhookPaymentList" placeholder="พิมพ์ค้นหาแล้วเลือก (จะใส่ EVP Payment ID ใน payload)" autocomplete="off" />
+            <datalist id="webhookPaymentList"></datalist>
+          </div>
+          <% } %>
           <div style="grid-column: 1 / -1;">
             <label>Webhook JSON Payload</label>
             <textarea id="payload" style="min-height:220px; font-family: 'JetBrains Mono','Fira Code',monospace; font-size:12px;"></textarea>
             <div class="muted" style="font-size:12px;margin-top:6px;">
-              ต้องมี <code>id</code>/<code>payment_id</code> หรือ ( <code>order_id</code>, <code>customer_id</code>, <code>transaction_ref</code> ).
-              การยิงจากเบราว์เซอร์ไม่มี headers <code>webhook-signature</code> — ใช้ <code>SKIP_WEBHOOK_VERIFY=true</code> สำหรับทดสอบ
+              ต้องมี <code>data.payment_id</code> / <code>payment_id</code> หรือคู่ reference ตามที่ API รองรับ — ดู <a href="https://docs.evp-pay.com/introduction" target="_blank" rel="noopener" style="color:#93c5fd;">เอกสาร EVP</a>
             </div>
           </div>
           <div>
-            <label>Optional: Payment_ID in URL <span class="muted" style="font-weight:400;">(route <code>/webhook/:id</code>)</span></label>
+            <label>Optional: Payment_ID ใน URL <span class="muted" style="font-weight:400;">(<code>POST /webhook/:id</code>)</span></label>
             <input id="paymentIdInPath" placeholder="89224ac9-..." />
           </div>
           <div>
@@ -317,11 +329,45 @@
 
   var activeCurlMode = 'general';
 
+  var payments = <%- JSON.stringify(payments || []) %>;
+  var paymentPick = document.getElementById('paymentPick');
+  var webhookPaymentList = document.getElementById('webhookPaymentList');
+
+  function fmtDateWh(v) {
+    if (!v) return '';
+    try {
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return String(v);
+      return d.toISOString();
+    } catch (e) {
+      return String(v);
+    }
+  }
+
+  function buildWhOption(p) {
+    var pid = p.Res_Payment_ID || '';
+    var label = [
+      pid,
+      p.Res_Status ? '(' + p.Res_Status + ')' : '',
+      p.Ref_TRN ? 'TRN:' + p.Ref_TRN : '',
+      p.Ref_Order_ID ? 'Order:' + p.Ref_Order_ID : '',
+      p.CreatedAtUtc ? fmtDateWh(p.CreatedAtUtc) : ''
+    ].filter(Boolean).join('  •  ');
+    return { pid: pid, label: label };
+  }
+
+  if (webhookPaymentList && payments.length) {
+    webhookPaymentList.innerHTML = payments.map(function (p) {
+      var o = buildWhOption(p);
+      return '<option value="' + String(o.label).replace(/"/g, '&quot;') + '"></option>';
+    }).join('');
+  }
+
   /* ── sample payload ── */
   var sample = {
     type: 'payment.completed',
     data: {
-      payment_id: 'PUT-REAL-PAYMENT_ID-HERE',
+      payment_id: '<%= W_SAMPLE_PID || 'PUT-REAL-PAYMENT_ID-HERE' %>',
       status: 'completed',
       terminal_id: '<%= W_TERMINAL %>',
       transaction_type: 'SALE',
@@ -362,11 +408,12 @@
     });
   }
 
-  function buildCurlHtml(url, rawBody) {
-    return '<span class="curl-cmd">curl</span> <span class="curl-flag">-X POST</span> <span class="curl-url">'
-      + esc(window.location.origin + url) + '</span> \\\n'
+  function buildCurlHtml(url) {
+    var full = esc(window.location.origin + url);
+    return '<span style="color:#6b7280;font-size:11px;display:block;margin-bottom:8px;">บันทึก JSON จากแท็บ Body เป็นไฟล์ <code style="color:#86efac;">body.json</code> ในโฟลเดอร์เดียวกัน แล้วรัน:</span>'
+      + '<span class="curl-cmd">curl.exe</span> <span class="curl-flag">-X POST</span> <span class="curl-url">' + full + '</span> \\\n'
       + '  <span class="curl-flag">-H</span> <span class="curl-str">"Content-Type: application/json"</span> \\\n'
-      + '  <span class="curl-flag">-d</span> <span class="curl-str">\'' + esc(rawBody) + '\'</span>';
+      + '  <span class="curl-flag">--data-binary</span> <span class="curl-str">"@body.json"</span>';
   }
 
   function update() {
@@ -384,9 +431,31 @@
         : '<span style="color:#f87171;">⚠ Invalid JSON</span>';
     }
 
-    /* curl panels */
-    if (curlGeneralEl)  curlGeneralEl.innerHTML  = buildCurlHtml(generalUrl(), raw);
-    if (curlPerPayEl)   curlPerPayEl.innerHTML   = buildCurlHtml(perPayUrl(),  raw);
+    /* curl panels (file-based — ใช้ได้บน PowerShell / cmd) */
+    if (curlGeneralEl) curlGeneralEl.innerHTML = buildCurlHtml(generalUrl());
+    if (curlPerPayEl) curlPerPayEl.innerHTML = buildCurlHtml(perPayUrl());
+  }
+
+  function applyPaymentIdToPayload(pidVal) {
+    if (!pidVal || !payloadEl) return;
+    try {
+      var j = JSON.parse(payloadEl.value);
+      if (j && typeof j === 'object') {
+        if (j.data && typeof j.data === 'object') j.data.payment_id = pidVal;
+        else j.payment_id = pidVal;
+        payloadEl.value = JSON.stringify(j, null, 2);
+        update();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  if (paymentPick) {
+    paymentPick.addEventListener('change', function () {
+      var v = paymentPick.value.trim();
+      if (!v) return;
+      var id = v.split('  •  ')[0].trim();
+      if (id) applyPaymentIdToPayload(id);
+    });
   }
 
   /* live updates */
@@ -432,9 +501,10 @@
   if (btnCopyCurl) {
     btnCopyCurl.addEventListener('click', function () {
       var url = window.location.origin + currentUrl();
-      var raw = 'curl -X POST ' + url + ' \\\n'
-        + '  -H "Content-Type: application/json" \\\n'
-        + '  -d \'' + payloadEl.value.trim() + '\'';
+      var raw = '# Save the JSON from the Body tab as body.json in the same folder, then:\r\n'
+        + 'curl.exe -X POST "' + url + '" \\\r\n'
+        + '  -H "Content-Type: application/json" \\\r\n'
+        + '  --data-binary "@body.json"';
       copyText(raw, btnCopyCurl);
     });
   }
@@ -466,8 +536,12 @@
       var text = await res.text();
       var parsed = null;
       try { parsed = JSON.parse(text); } catch {}
+      var hint = '';
+      if (res.status === 401 && parsed && parsed.message && String(parsed.message).indexOf('signature') >= 0) {
+        hint = '\n\n— ตั้ง SKIP_WEBHOOK_VERIFY=true หรืออย่าใส่ EVP_WEBHOOK_PUBLIC_KEY_B64 เมื่อทดสอบจากเบราว์เซอร์';
+      }
       resultEl.textContent = 'POST ' + url + '\nHTTP ' + res.status + '\n\n'
-        + (parsed ? JSON.stringify(parsed, null, 2) : text);
+        + (parsed ? JSON.stringify(parsed, null, 2) : text) + hint;
       resStatusBadge.className = 'res-status-badge ' + (res.ok ? 'ok' : 'err');
       resStatusBadge.textContent = res.status + ' ' + (res.ok ? 'OK' : 'Error');
     } catch (e) {
@@ -606,10 +680,16 @@
   var pidInputEl = document.getElementById('paymentIdInPath');
 
   function pid()    { return pidInputEl ? pidInputEl.value.trim() : ''; }
+  function whBase() {
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+      return window.location.origin;
+    }
+    return '<%= W_APP_URL %>';
+  }
   function whUrl()  {
     var p = pid();
-    return p ? ('http://localhost:3000/webhook/' + encodeURIComponent(p))
-             : 'http://localhost:3000/api/webhook/evp';
+    var base = whBase();
+    return p ? (base + '/webhook/' + encodeURIComponent(p)) : (base + '/api/webhook/evp');
   }
   function rawBody() { return payloadEl ? payloadEl.value.trim() : '{}'; }
 
@@ -733,7 +813,7 @@
       + '    ' + fn('curl_easy_setopt') + '(' + vr('curl') + ', ' + ty('CURLOPT_HTTPHEADER') + ',  ' + vr('headers') + ');\n\n'
       + '    ' + ty('CURLcode') + ' ' + vr('res') + ' ' + op('=') + ' ' + fn('curl_easy_perform') + '(' + vr('curl') + ');\n'
       + '    ' + kw('if') + ' (' + vr('res') + ' ' + op('!=') + ' ' + ty('CURLE_OK') + ')\n'
-      + '        ' + ty('std') + '::' + vr('cerr') + ' ' + op('&lt;&lt;') + ' ' + st('"❌ "'') + ' ' + op('&lt;&lt;') + ' ' + fn('curl_easy_strerror') + '(' + vr('res') + ') ' + op('&lt;&lt;') + ' ' + ty('std') + '::' + vr('endl') + ';\n\n'
+      + '        ' + ty('std') + '::' + vr('cerr') + ' ' + op('&lt;&lt;') + ' ' + st('"❌ "') + ' ' + op('&lt;&lt;') + ' ' + fn('curl_easy_strerror') + '(' + vr('res') + ') ' + op('&lt;&lt;') + ' ' + ty('std') + '::' + vr('endl') + ';\n\n'
       + '    ' + fn('curl_slist_free_all') + '(' + vr('headers') + ');\n'
       + '    ' + fn('curl_easy_cleanup') + '(' + vr('curl') + ');\n'
       + '    ' + kw('return') + ' ' + num('0') + ';\n'
